@@ -85,7 +85,7 @@ export function LoginForm() {
       }
 
       // On success, go to 2FA verification
-      router.push(`/verify?email=${encodeURIComponent(email)}`)
+      router.push(`/verify?email=${encodeURIComponent(email)}&role=${selectedRole}`)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Error sending 2FA email"
       setError(message)

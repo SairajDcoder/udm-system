@@ -8,6 +8,7 @@ function VerifyContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const email = searchParams.get("email") || "user@mitaoe.ac.in"
+  const role = searchParams.get("role") || "Student"
   
   const maskEmail = (email: string) => {
     const [localPart, domain] = email.split("@")
@@ -32,9 +33,15 @@ function VerifyContent() {
           throw new Error(data.error || "Verification failed")
         }
         
-        // After successful verification, redirect to dashboard (or home for now)
+        // After successful verification, redirect to dashboard based on role
         setTimeout(() => {
-          router.push("/")
+          switch (role) {
+            case "Student": router.push("/student-portal"); break;
+            case "Faculty": router.push("/faculty-portal"); break;
+            case "Verifier": router.push("/verifier-portal"); break;
+            case "Admin": router.push("/super-admin-portal"); break;
+            default: router.push("/");
+          }
         }, 500)
       }}
       onResend={async () => {
