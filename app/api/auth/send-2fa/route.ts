@@ -1,10 +1,7 @@
-import { Resend } from "resend";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import crypto from "crypto";
-
-const resend = new Resend(process.env.RESEND_API_KEY);
-
+import { sendMail } from "@/lib/utils/email";
 export async function POST(req: NextRequest) {
   try {
     const { email } = await req.json();
@@ -21,10 +18,9 @@ export async function POST(req: NextRequest) {
     cookieStore.set('otp_hash', hash, { httpOnly: true, secure: process.env.NODE_ENV === 'production', maxAge: 300 }); // 5 minutes
     cookieStore.set('otp_email', email, { httpOnly: true, secure: process.env.NODE_ENV === 'production', maxAge: 300 });
     
-    // Send email via Resend
-    const { error } = await resend.emails.send({
-      from: "UniChain <no-reply@resend.dev>",
-      to: [email],
+    // Send email via Nodemailer SMTP
+    await sendMail({
+      to: email,
       subject: "Your UniChain Verification Code",
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto;">
@@ -39,11 +35,6 @@ export async function POST(req: NextRequest) {
       `
     });
 
-    if (error) {
-      console.error("Resend error:", error);
-      return NextResponse.json({ error: "Failed to send email" }, { status: 500 });
-    }
-    
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("2FA Send Error:", error);

@@ -1,7 +1,5 @@
-import { Resend } from "resend"
 import { NextRequest, NextResponse } from "next/server"
-
-const resend = new Resend(process.env.RESEND_API_KEY)
+import { sendMail } from "@/lib/utils/email"
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,9 +12,8 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { data, error } = await resend.emails.send({
-      from: "UniChain <no-reply@resend.dev>",
-      to: [email],
+    await sendMail({
+      to: email,
       subject: "Reset your UniChain password",
       html: `
         <!DOCTYPE html>
@@ -127,13 +124,8 @@ export async function POST(req: NextRequest) {
       `,
     })
 
-    if (error) {
-      console.error("Resend error:", error)
-      return NextResponse.json({ error: "Failed to send email" }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true, id: data?.id })
-  } catch (err) {
+    return NextResponse.json({ success: true })
+  } catch (err: any) {
     console.error("Send reset email error:", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }

@@ -204,7 +204,7 @@ export function TwoFactorVerification({
                 ? 'border-green-500 bg-green-50' 
                 : hasError 
                   ? 'border-red-500' 
-                  : digit || document.activeElement === inputRefs.current[index]
+                  : digit
                     ? 'border-[#0E8A7E]' 
                     : 'border-gray-300'
               }

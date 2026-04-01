@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Check, ChevronDown, Upload, Lock, Eye, EyeOff, Copy, CheckCircle2 } from "lucide-react"
+import { Check, ChevronDown, Upload, Lock, Eye, EyeOff, Copy, CheckCircle2, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 import { useAppKit, useAppKitAccount } from "@reown/appkit/react"
@@ -78,7 +78,6 @@ export function RegistrationForm() {
   const [submitError, setSubmitError] = useState("")
   
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const totpRefs = useRef<(HTMLInputElement | null)[]>([])
 
   const steps = [
     { number: 1, label: "Personal Info" },
@@ -92,7 +91,7 @@ export function RegistrationForm() {
 
   const handleNext = () => {
     setSlideDirection("right")
-    setCurrentStep(prev => Math.min(prev + 1, 3))
+    setCurrentStep(prev => Math.min(prev + 1, steps.length))
   }
 
   const handleBack = () => {
@@ -100,38 +99,50 @@ export function RegistrationForm() {
     setCurrentStep(prev => Math.max(prev - 1, 1))
   }
 
-  const handleComplete = async () => {
+  const submitRegistration = async () => {
     setIsSubmitting(true)
     setSubmitError("")
 
-    const { data, error } = await supabase.auth.signUp({
-      email: formData.institutionalEmail,
-      password: formData.password,
-      options: {
-        data: {
-          full_name: formData.fullName,
-          role: formData.role,
-          department: formData.department,
-          programme: formData.programme,
-          enrollment_id: formData.enrollmentId,
-          phone: formData.phoneNumber,
-          join_year: formData.joinYear,
-          wallet_address: connectedWallet || null,
-          mfa_enabled: formData.enableMfa,
-        },
-      },
-    })
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: formData.institutionalEmail,
+          password: formData.password,
+          data: {
+            full_name: formData.fullName,
+            role: formData.role,
+            department: formData.department,
+            programme: formData.programme,
+            enrollment_id: formData.enrollmentId,
+            phone: formData.phoneNumber,
+            join_year: formData.joinYear,
+            wallet_address: connectedWallet || null,
+            mfa_enabled: formData.enableMfa,
+          }
+        })
+      })
 
-    if (error) {
-      setSubmitError(error.message)
+      const resData = await response.json()
+
+      if (!response.ok) {
+        throw new Error(resData.error || "Failed to register account")
+      }
+
+      setRegisteredWalletAddress(connectedWallet || resData.user?.id?.slice(0, 42) || "")
       setIsSubmitting(false)
-      return
+      setIsComplete(true)
+      return true
+    } catch (err: any) {
+      setSubmitError(err.message)
+      setIsSubmitting(false)
+      return false
     }
+  }
 
-    // Store the wallet address for display
-    setRegisteredWalletAddress(connectedWallet || data.user?.id?.slice(0, 42) || "")
-    setIsSubmitting(false)
-    setIsComplete(true)
+  const handleStep3Submit = async () => {
+    await submitRegistration()
   }
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -143,24 +154,6 @@ export function RegistrationForm() {
         setPhotoPreview(reader.result as string)
       }
       reader.readAsDataURL(file)
-    }
-  }
-
-  const handleTotpChange = (index: number, value: string) => {
-    if (!/^\d*$/.test(value)) return
-    
-    const newCode = [...formData.totpCode]
-    newCode[index] = value.slice(-1)
-    updateFormData("totpCode", newCode)
-    
-    if (value && index < 5) {
-      totpRefs.current[index + 1]?.focus()
-    }
-  }
-
-  const handleTotpKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === "Backspace" && !formData.totpCode[index] && index > 0) {
-      totpRefs.current[index - 1]?.focus()
     }
   }
 
@@ -233,7 +226,7 @@ export function RegistrationForm() {
         </h3>
         
         <p className="text-[#5C667A] mb-8 max-w-sm mx-auto">
-          Your Ethereum wallet has been generated and DID registered on-chain.
+          Your account was effectively created. Please check your email inbox to verify your account before logging in.
         </p>
 
         {/* Wallet Address */}
@@ -347,14 +340,18 @@ export function RegistrationForm() {
               setShowConfirmPassword={setShowConfirmPassword}
               passwordStrength={passwordStrength}
               passwordsMatch={passwordsMatch}
-              totpRefs={totpRefs}
-              handleTotpChange={handleTotpChange}
-              handleTotpKeyDown={handleTotpKeyDown}
               onBack={handleBack}
-              onComplete={handleComplete}
+              onNext={handleStep3Submit}
+              isSubmitting={isSubmitting}
             />
           )}
         </div>
+        
+        {submitError && (
+          <div className="mt-4 p-3 bg-red-50 text-red-600 text-sm rounded-md border border-red-100 animate-fade-in">
+            {submitError}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -689,11 +686,9 @@ function Step3({
   setShowConfirmPassword,
   passwordStrength,
   passwordsMatch,
-  totpRefs,
-  handleTotpChange,
-  handleTotpKeyDown,
   onBack,
-  onComplete,
+  onNext,
+  isSubmitting,
 }: {
   formData: FormData
   updateFormData: <K extends keyof FormData>(key: K, value: FormData[K]) => void
@@ -703,11 +698,9 @@ function Step3({
   setShowConfirmPassword: (show: boolean) => void
   passwordStrength: { level: number; label: string; color: string }
   passwordsMatch: boolean
-  totpRefs: React.MutableRefObject<(HTMLInputElement | null)[]>
-  handleTotpChange: (index: number, value: string) => void
-  handleTotpKeyDown: (index: number, e: React.KeyboardEvent) => void
   onBack: () => void
-  onComplete: () => void
+  onNext: () => void
+  isSubmitting: boolean
 }) {
   return (
     <div className="space-y-5">
@@ -810,39 +803,6 @@ function Step3({
         </button>
       </div>
 
-      {/* MFA Setup (conditional) */}
-      {formData.enableMfa && (
-        <div className="space-y-4 p-4 bg-[#F8F9FB] rounded-lg">
-          {/* QR Code Placeholder */}
-          <div className="w-[200px] h-[200px] mx-auto bg-gray-200 rounded-lg flex items-center justify-center">
-            <Lock className="w-12 h-12 text-[#5C667A]" />
-          </div>
-          <p className="text-sm text-[#5C667A] text-center">
-            Scan with your authenticator app
-          </p>
-
-          {/* TOTP Input */}
-          <div className="flex justify-center gap-2">
-            {formData.totpCode.map((digit, index) => (
-              <input
-                key={index}
-                ref={(el) => { totpRefs.current[index] = el }}
-                type="text"
-                inputMode="numeric"
-                maxLength={1}
-                value={digit}
-                onChange={(e) => handleTotpChange(index, e.target.value)}
-                onKeyDown={(e) => handleTotpKeyDown(index, e)}
-                className={cn(
-                  "w-10 h-12 text-center text-lg font-medium rounded-md border-2 bg-white focus:outline-none transition-colors",
-                  digit ? "border-[#0E8A7E]" : "border-gray-200 focus:border-[#0E8A7E]"
-                )}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Accept Terms Checkbox */}
       <label className="flex items-start gap-3 cursor-pointer">
         <div
@@ -872,11 +832,17 @@ function Step3({
       {/* Navigation Buttons */}
       <div className="flex flex-col gap-3 pt-4">
         <button
-          onClick={onComplete}
-          disabled={!formData.acceptTerms || !passwordsMatch}
-          className="w-full h-11 bg-[#0E8A7E] hover:bg-[#14B5A5] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium rounded-md transition-colors"
+          onClick={onNext}
+          disabled={!formData.acceptTerms || !passwordsMatch || isSubmitting}
+          className="w-full h-11 flex items-center justify-center bg-[#0E8A7E] hover:bg-[#14B5A5] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium rounded-md transition-colors"
         >
-          Complete Registration
+          {isSubmitting ? (
+             <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Processing...</>
+          ) : formData.enableMfa ? (
+            "Create Account & Set Up MFA"
+          ) : (
+            "Complete Registration"
+          )}
         </button>
         <button
           onClick={onBack}
