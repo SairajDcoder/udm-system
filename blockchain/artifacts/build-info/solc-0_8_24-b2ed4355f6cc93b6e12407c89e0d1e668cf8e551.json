@@ -1,0 +1,40 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_24-b2ed4355f6cc93b6e12407c89e0d1e668cf8e551",
+  "solcVersion": "0.8.24",
+  "solcLongVersion": "0.8.24+commit.e11b9ed9",
+  "compilerType": "solc",
+  "userSourceNameMap": {
+    "contracts/GradeRegistry.sol": "project/contracts/GradeRegistry.sol",
+    "contracts/ValidatorRegistry.sol": "project/contracts/ValidatorRegistry.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "shanghai",
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode",
+            "evm.methodIdentifiers",
+            "metadata"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/GradeRegistry.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\n\ncontract GradeRegistry {\n    struct Grade {\n        string studentId;\n        string courseId;\n        string term;\n        string cid;\n        address faculty;\n        uint256 timestamp;\n    }\n\n    mapping(string => Grade) public grades;\n\n    event GradeLogged(string indexed studentId, string courseId, string cid, address indexed faculty);\n\n    function logGrade(string memory _studentId, string memory _courseId, string memory _term, string memory _cid) public {\n        grades[_cid] = Grade({\n            studentId: _studentId,\n            courseId: _courseId,\n            term: _term,\n            cid: _cid,\n            faculty: msg.sender,\n            timestamp: block.timestamp\n        });\n\n        emit GradeLogged(_studentId, _courseId, _cid, msg.sender);\n    }\n}\n"
+      },
+      "project/contracts/ValidatorRegistry.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\n\ncontract ValidatorRegistry {\n    struct Validator {\n        address wallet;\n        string name;\n        uint256 stake;\n        bool isActive;\n    }\n\n    mapping(address => Validator) public validators;\n\n    event ValidatorAdded(address indexed wallet, string name, uint256 stake);\n\n    function addValidator(address _wallet, string memory _name, uint256 _stake) public {\n        require(!validators[_wallet].isActive, \"Validator is already active\");\n        validators[_wallet] = Validator({\n            wallet: _wallet,\n            name: _name,\n            stake: _stake,\n            isActive: true\n        });\n        emit ValidatorAdded(_wallet, _name, _stake);\n    }\n}\n"
+      }
+    }
+  }
+}

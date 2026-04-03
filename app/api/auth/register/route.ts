@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { sendMail } from "@/lib/utils/email"
+import { registerUserProfile } from "@/lib/unichain/service"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -80,8 +81,34 @@ export async function POST(req: NextRequest) {
       html: htmlEmail,
     })
 
-    // Return the created user object mimicking a successful register
-    return NextResponse.json({ success: true, user: linkData.user })
+    const userProfile = await registerUserProfile({
+      email,
+      role: data?.role || "student",
+      fullName: data?.full_name,
+      personalEmail: data?.personal_email,
+      phone: data?.phone,
+      dateOfBirth: data?.date_of_birth,
+      gender: data?.gender,
+      department: data?.department,
+      programme: data?.programme,
+      enrollmentId: data?.enrollment_id,
+      joinYear: data?.join_year,
+      walletAddress: data?.wallet_address,
+      mfaEnabled: data?.mfa_enabled,
+    })
+
+    let mfaUri = null
+    if (userProfile.mfaEnabled && userProfile.mfaSecret) {
+      const speakeasy = require("speakeasy")
+      mfaUri = speakeasy.otpauthURL({
+        secret: userProfile.mfaSecret,
+        label: email,
+        issuer: "UniChain",
+        encoding: "base32"
+      })
+    }
+
+    return NextResponse.json({ success: true, user: linkData.user, mfaUri })
 
   } catch (err: any) {
     console.error("SMTP Registration error:", err)

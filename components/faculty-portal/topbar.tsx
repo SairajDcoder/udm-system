@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { Bell, Search, User, LogOut, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,6 +16,14 @@ import {
 import { Badge } from '@/components/ui/badge'
 
 export function PortalTopbar() {
+  const router = useRouter()
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    router.push('/')
+    router.refresh()
+  }
+
   return (
     <header className="fixed top-0 right-0 z-30 flex h-16 items-center justify-between border-b border-navy-100 bg-white px-6 transition-all duration-300 left-[260px]">
       {/* Search */}
@@ -82,7 +91,7 @@ export function PortalTopbar() {
               Settings
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">
+            <DropdownMenuItem className="text-destructive" onSelect={() => void handleLogout()}>
               <LogOut className="mr-2 h-4 w-4" />
               Log out
             </DropdownMenuItem>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { AdminHeader } from "@/components/super-admin-portal/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -13,273 +13,246 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Blocks, ArrowRightLeft, Clock, Hash, Database, Cpu, HardDrive } from "lucide-react"
+import { Blocks, ArrowRightLeft, Activity, Loader2 } from "lucide-react"
 
-interface Block {
-  number: number
-  hash: string
-  txCount: number
-  gasUsed: string
-  timestamp: string
-  validator: string
+type ChainKey = "student" | "faculty" | "institutional"
+
+type BlockRecord = {
+  blockchain: ChainKey
+  blockNumber: number
+  blockHash: string
+  previousHash: string
+  validatorId: string
+  createdAt: string
 }
 
-interface Transaction {
-  hash: string
-  from: string
-  to: string
-  value: string
-  status: "confirmed" | "pending" | "failed"
-  timestamp: string
+type TransactionRecord = {
+  id: string
+  blockchain: ChainKey
+  type: string
+  actorId: string
+  contractName: string
+  transactionHash: string
+  gasUsed: number
+  blockNumber: number
+  createdAt: string
 }
 
-const studentBlocks: Block[] = [
-  { number: 1234567, hash: "0x8f4e...3a2b", txCount: 24, gasUsed: "45%", timestamp: "2 sec ago", validator: "Node-03" },
-  { number: 1234566, hash: "0x7d3c...9f1e", txCount: 18, gasUsed: "38%", timestamp: "15 sec ago", validator: "Node-01" },
-  { number: 1234565, hash: "0x2a1b...5c4d", txCount: 31, gasUsed: "62%", timestamp: "28 sec ago", validator: "Node-05" },
-  { number: 1234564, hash: "0x9e8f...1a2b", txCount: 12, gasUsed: "28%", timestamp: "41 sec ago", validator: "Node-02" },
-  { number: 1234563, hash: "0x4b5c...7d8e", txCount: 27, gasUsed: "51%", timestamp: "54 sec ago", validator: "Node-04" },
-]
-
-const studentTransactions: Transaction[] = [
-  { hash: "0xabc1...ef23", from: "0x1234...5678", to: "StudentReg", value: "0 ETH", status: "confirmed", timestamp: "5 sec ago" },
-  { hash: "0xdef4...gh56", from: "0x8765...4321", to: "GradeStore", value: "0 ETH", status: "confirmed", timestamp: "12 sec ago" },
-  { hash: "0xijk7...lm89", from: "0x2468...1357", to: "StudentReg", value: "0 ETH", status: "pending", timestamp: "18 sec ago" },
-  { hash: "0xnop0...qr12", from: "0x1357...2468", to: "Enrollment", value: "0 ETH", status: "confirmed", timestamp: "25 sec ago" },
-  { hash: "0xstu3...vw45", from: "0x9876...5432", to: "GradeStore", value: "0 ETH", status: "failed", timestamp: "32 sec ago" },
-]
-
-const chainStats = {
-  student: { totalBlocks: 1234567, totalTx: 8945231, avgBlockTime: "12.5s", hashRate: "145 MH/s" },
-  faculty: { totalBlocks: 987654, totalTx: 3421567, avgBlockTime: "15.2s", hashRate: "98 MH/s" },
-  institutional: { totalBlocks: 654321, totalTx: 1234567, avgBlockTime: "18.8s", hashRate: "67 MH/s" },
-}
-
-function NetworkDiagram() {
-  return (
-    <Card className="bg-card border-border">
-      <CardHeader className="pb-2">
-        <CardTitle className="font-serif text-base">Network Topology</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <svg viewBox="0 0 400 200" className="w-full h-[200px]">
-          {/* Connection lines */}
-          <line x1="200" y1="100" x2="80" y2="50" stroke="#334155" strokeWidth="2" />
-          <line x1="200" y1="100" x2="320" y2="50" stroke="#334155" strokeWidth="2" />
-          <line x1="200" y1="100" x2="80" y2="150" stroke="#334155" strokeWidth="2" />
-          <line x1="200" y1="100" x2="320" y2="150" stroke="#334155" strokeWidth="2" />
-          <line x1="200" y1="100" x2="200" y2="30" stroke="#334155" strokeWidth="2" />
-          
-          {/* Central node */}
-          <circle cx="200" cy="100" r="25" fill="#D64045" />
-          <text x="200" y="105" textAnchor="middle" fill="white" fontSize="10" fontFamily="monospace">MAIN</text>
-          
-          {/* Validator nodes */}
-          <circle cx="80" cy="50" r="18" fill="#10B981" className="animate-pulse" />
-          <text x="80" y="54" textAnchor="middle" fill="white" fontSize="8" fontFamily="monospace">V-01</text>
-          
-          <circle cx="320" cy="50" r="18" fill="#10B981" className="animate-pulse" />
-          <text x="320" y="54" textAnchor="middle" fill="white" fontSize="8" fontFamily="monospace">V-02</text>
-          
-          <circle cx="80" cy="150" r="18" fill="#10B981" className="animate-pulse" />
-          <text x="80" y="154" textAnchor="middle" fill="white" fontSize="8" fontFamily="monospace">V-03</text>
-          
-          <circle cx="320" cy="150" r="18" fill="#E8A838" />
-          <text x="320" y="154" textAnchor="middle" fill="white" fontSize="8" fontFamily="monospace">V-04</text>
-          
-          <circle cx="200" cy="30" r="18" fill="#10B981" className="animate-pulse" />
-          <text x="200" y="34" textAnchor="middle" fill="white" fontSize="8" fontFamily="monospace">V-05</text>
-          
-          {/* Legend */}
-          <circle cx="30" cy="180" r="6" fill="#10B981" />
-          <text x="42" y="183" fill="#9CA3AF" fontSize="9">Active</text>
-          <circle cx="100" cy="180" r="6" fill="#E8A838" />
-          <text x="112" y="183" fill="#9CA3AF" fontSize="9">Syncing</text>
-          <circle cx="170" cy="180" r="6" fill="#D64045" />
-          <text x="182" y="183" fill="#9CA3AF" fontSize="9">Primary</text>
-        </svg>
-      </CardContent>
-    </Card>
-  )
-}
-
-function ChainStatsSidebar({ chain }: { chain: "student" | "faculty" | "institutional" }) {
-  const stats = chainStats[chain]
-  return (
-    <Card className="bg-card border-border">
-      <CardHeader className="pb-2">
-        <CardTitle className="font-serif text-base">Chain Statistics</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <Blocks className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Total Blocks</p>
-            <p className="font-mono text-lg font-bold">{stats.totalBlocks.toLocaleString()}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary/10">
-            <ArrowRightLeft className="h-5 w-5 text-secondary" />
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Total Transactions</p>
-            <p className="font-mono text-lg font-bold">{stats.totalTx.toLocaleString()}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-info/10">
-            <Clock className="h-5 w-5 text-info" />
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Avg Block Time</p>
-            <p className="font-mono text-lg font-bold">{stats.avgBlockTime}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success/10">
-            <Cpu className="h-5 w-5 text-success" />
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Hash Rate</p>
-            <p className="font-mono text-lg font-bold">{stats.hashRate}</p>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-function BlocksTable({ blocks }: { blocks: Block[] }) {
-  return (
-    <Card className="bg-card border-border">
-      <CardHeader className="pb-2">
-        <CardTitle className="font-serif text-base flex items-center gap-2">
-          <Blocks className="h-4 w-4 text-primary" />
-          Latest Blocks
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="text-muted-foreground">Block</TableHead>
-              <TableHead className="text-muted-foreground">Hash</TableHead>
-              <TableHead className="text-muted-foreground">Txns</TableHead>
-              <TableHead className="text-muted-foreground">Gas</TableHead>
-              <TableHead className="text-muted-foreground">Validator</TableHead>
-              <TableHead className="text-muted-foreground">Age</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {blocks.map((block) => (
-              <TableRow key={block.number} className="border-border">
-                <TableCell className="font-mono text-primary">#{block.number}</TableCell>
-                <TableCell className="font-mono text-xs">{block.hash}</TableCell>
-                <TableCell className="font-mono">{block.txCount}</TableCell>
-                <TableCell className="font-mono">{block.gasUsed}</TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="font-mono text-xs">
-                    {block.validator}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-muted-foreground text-xs">{block.timestamp}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
-  )
-}
-
-function TransactionsTable({ transactions }: { transactions: Transaction[] }) {
-  return (
-    <Card className="bg-card border-border">
-      <CardHeader className="pb-2">
-        <CardTitle className="font-serif text-base flex items-center gap-2">
-          <ArrowRightLeft className="h-4 w-4 text-secondary" />
-          Latest Transactions
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="text-muted-foreground">Hash</TableHead>
-              <TableHead className="text-muted-foreground">From</TableHead>
-              <TableHead className="text-muted-foreground">To</TableHead>
-              <TableHead className="text-muted-foreground">Status</TableHead>
-              <TableHead className="text-muted-foreground">Age</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {transactions.map((tx) => (
-              <TableRow key={tx.hash} className="border-border">
-                <TableCell className="font-mono text-xs text-primary">{tx.hash}</TableCell>
-                <TableCell className="font-mono text-xs">{tx.from}</TableCell>
-                <TableCell className="font-mono text-xs">{tx.to}</TableCell>
-                <TableCell>
-                  <Badge
-                    className={
-                      tx.status === "confirmed"
-                        ? "bg-success/20 text-success border-success/30"
-                        : tx.status === "pending"
-                        ? "bg-warning/20 text-warning border-warning/30"
-                        : "bg-error/20 text-error border-error/30"
-                    }
-                  >
-                    {tx.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-muted-foreground text-xs">{tx.timestamp}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
-  )
+type ValidatorRecord = {
+  id: string
+  blockchain: ChainKey
+  name: string
+  status: "active" | "syncing" | "degraded"
+  stake: number
+  uptime: number
 }
 
 export default function BlockchainMonitorPage() {
-  const [activeChain, setActiveChain] = useState<"student" | "faculty" | "institutional">("student")
+  const [activeChain, setActiveChain] = useState<ChainKey>("student")
+  const [blocks, setBlocks] = useState<BlockRecord[]>([])
+  const [transactions, setTransactions] = useState<TransactionRecord[]>([])
+  const [validators, setValidators] = useState<ValidatorRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function loadData() {
+      setLoading(true)
+      setError(null)
+      try {
+        const response = await fetch("/api/system/blockchain", { cache: "no-store" })
+        const data = await response.json()
+        setBlocks(Array.isArray(data.blocks) ? data.blocks : [])
+        setTransactions(Array.isArray(data.transactions) ? data.transactions : [])
+        setValidators(Array.isArray(data.validators) ? data.validators : [])
+      } catch {
+        setError("Failed to load blockchain telemetry.")
+      } finally {
+        setLoading(false)
+      }
+    }
+    void loadData()
+  }, [])
+
+  const chainBlocks = useMemo(
+    () => blocks.filter((block) => block.blockchain === activeChain).slice(-10).reverse(),
+    [activeChain, blocks]
+  )
+  const chainTransactions = useMemo(
+    () => transactions.filter((transaction) => transaction.blockchain === activeChain).slice(0, 15),
+    [activeChain, transactions]
+  )
+  const chainValidators = useMemo(
+    () => validators.filter((validator) => validator.blockchain === activeChain),
+    [activeChain, validators]
+  )
+  const activeValidators = chainValidators.filter((validator) => validator.status === "active").length
 
   return (
     <div className="min-h-screen">
       <AdminHeader title="Blockchain Network Monitor" code="ADM-02" />
-      <main className="p-6 space-y-6">
-        <Tabs value={activeChain} onValueChange={(v) => setActiveChain(v as typeof activeChain)}>
-          <TabsList className="bg-muted border border-border">
-            <TabsTrigger value="student" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Database className="h-4 w-4 mr-2" />
-              Student BC
-            </TabsTrigger>
-            <TabsTrigger value="faculty" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Database className="h-4 w-4 mr-2" />
-              Faculty BC
-            </TabsTrigger>
-            <TabsTrigger value="institutional" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <HardDrive className="h-4 w-4 mr-2" />
-              Institutional BC
-            </TabsTrigger>
+      <main className="space-y-6 p-6">
+        {error ? (
+          <div className="rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+            {error}
+          </div>
+        ) : null}
+
+        <Tabs value={activeChain} onValueChange={(value) => setActiveChain(value as ChainKey)}>
+          <TabsList className="border border-border bg-muted">
+            <TabsTrigger value="student">Student BC</TabsTrigger>
+            <TabsTrigger value="faculty">Faculty BC</TabsTrigger>
+            <TabsTrigger value="institutional">Institutional BC</TabsTrigger>
           </TabsList>
 
-          <TabsContent value={activeChain} className="mt-6">
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-              <div className="lg:col-span-3 space-y-6">
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                  <BlocksTable blocks={studentBlocks} />
-                  <TransactionsTable transactions={studentTransactions} />
-                </div>
-                <NetworkDiagram />
-              </div>
-              <div className="lg:col-span-1">
-                <ChainStatsSidebar chain={activeChain} />
-              </div>
+          <TabsContent value={activeChain} className="mt-6 space-y-6">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <Card className="bg-card border-border">
+                <CardContent className="pt-6">
+                  <p className="text-xs uppercase text-muted-foreground">Latest Block</p>
+                  <p className="font-mono text-2xl font-bold">
+                    #{chainBlocks[0]?.blockNumber ?? 0}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="bg-card border-border">
+                <CardContent className="pt-6">
+                  <p className="text-xs uppercase text-muted-foreground">Transactions</p>
+                  <p className="font-mono text-2xl font-bold">{chainTransactions.length}</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-card border-border">
+                <CardContent className="pt-6">
+                  <p className="text-xs uppercase text-muted-foreground">Active Validators</p>
+                  <p className="font-mono text-2xl font-bold">
+                    {activeValidators}/{chainValidators.length}
+                  </p>
+                </CardContent>
+              </Card>
             </div>
+
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 font-serif text-base">
+                    <Blocks className="h-5 w-5 text-primary" />
+                    Latest Blocks
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading blocks...
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-border hover:bg-transparent">
+                          <TableHead>Block</TableHead>
+                          <TableHead>Validator</TableHead>
+                          <TableHead>Hash</TableHead>
+                          <TableHead>Time</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {chainBlocks.map((block) => (
+                          <TableRow key={`${block.blockchain}-${block.blockNumber}`} className="border-border">
+                            <TableCell className="font-mono">#{block.blockNumber}</TableCell>
+                            <TableCell>{block.validatorId}</TableCell>
+                            <TableCell className="font-mono text-xs">{block.blockHash}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {new Date(block.createdAt).toLocaleString()}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 font-serif text-base">
+                    <ArrowRightLeft className="h-5 w-5 text-secondary" />
+                    Latest Transactions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading transactions...
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-border hover:bg-transparent">
+                          <TableHead>Type</TableHead>
+                          <TableHead>Actor</TableHead>
+                          <TableHead>Contract</TableHead>
+                          <TableHead>Hash</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {chainTransactions.map((transaction) => (
+                          <TableRow key={transaction.id} className="border-border">
+                            <TableCell>{transaction.type}</TableCell>
+                            <TableCell>{transaction.actorId}</TableCell>
+                            <TableCell>{transaction.contractName}</TableCell>
+                            <TableCell className="font-mono text-xs">{transaction.transactionHash}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-serif text-base">
+                  <Activity className="h-5 w-5 text-primary" />
+                  Validator Set
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-border hover:bg-transparent">
+                      <TableHead>Validator</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Stake</TableHead>
+                      <TableHead>Uptime</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {chainValidators.map((validator) => (
+                      <TableRow key={validator.id} className="border-border">
+                        <TableCell>{validator.name}</TableCell>
+                        <TableCell>
+                          <Badge
+                            className={
+                              validator.status === "active"
+                                ? "bg-success/20 text-success border-success/30"
+                                : validator.status === "syncing"
+                                ? "bg-warning/20 text-warning border-warning/30"
+                                : "bg-error/20 text-error border-error/30"
+                            }
+                          >
+                            {validator.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-mono">{validator.stake}</TableCell>
+                        <TableCell className="font-mono">{validator.uptime}%</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </main>

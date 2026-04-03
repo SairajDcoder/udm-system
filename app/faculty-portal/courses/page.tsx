@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,523 +23,370 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
-  Plus,
-  Search,
-  MoreHorizontal,
-  Eye,
-  Edit,
-  Trash2,
-  Upload,
-  Users,
-  FileSpreadsheet,
-  FolderOpen,
-  Filter,
-} from 'lucide-react'
+import { Search, Eye, Upload, Loader2, Users, FileText } from 'lucide-react'
 
-// Sample course data
-const courses = [
-  {
-    id: 'CS301',
-    name: 'Data Structures & Algorithms',
-    department: 'Computer Science',
-    credits: 4,
-    semester: 'Spring 2026',
-    instructor: 'Dr. Sarah Johnson',
-    enrolled: 45,
-    capacity: 50,
-    status: 'active',
-  },
-  {
-    id: 'CS401',
-    name: 'Machine Learning',
-    department: 'Computer Science',
-    credits: 3,
-    semester: 'Spring 2026',
-    instructor: 'Dr. Sarah Johnson',
-    enrolled: 38,
-    capacity: 40,
-    status: 'active',
-  },
-  {
-    id: 'MATH201',
-    name: 'Linear Algebra',
-    department: 'Mathematics',
-    credits: 3,
-    semester: 'Spring 2026',
-    instructor: 'Dr. Michael Chen',
-    enrolled: 55,
-    capacity: 60,
-    status: 'active',
-  },
-  {
-    id: 'CS201',
-    name: 'Introduction to Programming',
-    department: 'Computer Science',
-    credits: 4,
-    semester: 'Fall 2025',
-    instructor: 'Dr. Sarah Johnson',
-    enrolled: 48,
-    capacity: 50,
-    status: 'completed',
-  },
-  {
-    id: 'CS501',
-    name: 'Advanced Cryptography',
-    department: 'Computer Science',
-    credits: 3,
-    semester: 'Spring 2026',
-    instructor: 'Dr. Emily White',
-    enrolled: 0,
-    capacity: 30,
-    status: 'draft',
-  },
-]
-
-// Sample enrolled students
-const enrolledStudents = [
-  { id: 'STU001', name: 'Alice Johnson', email: 'alice.j@university.edu', grade: 'A', status: 'active' },
-  { id: 'STU002', name: 'Bob Wilson', email: 'bob.w@university.edu', grade: 'B+', status: 'active' },
-  { id: 'STU003', name: 'Carol Davis', email: 'carol.d@university.edu', grade: 'A-', status: 'active' },
-  { id: 'STU004', name: 'David Lee', email: 'david.l@university.edu', grade: 'B', status: 'active' },
-  { id: 'STU005', name: 'Emma Brown', email: 'emma.b@university.edu', grade: '-', status: 'dropped' },
-]
-
-// Sample materials
-const courseMaterials = [
-  { id: 1, name: 'Syllabus.pdf', type: 'PDF', size: '245 KB', ipfsHash: 'Qm...abc1', uploadedAt: '2026-01-15' },
-  { id: 2, name: 'Lecture 1 - Introduction.pdf', type: 'PDF', size: '1.2 MB', ipfsHash: 'Qm...abc2', uploadedAt: '2026-01-20' },
-  { id: 3, name: 'Assignment 1.pdf', type: 'PDF', size: '89 KB', ipfsHash: 'Qm...abc3', uploadedAt: '2026-01-25' },
-]
-
-function getStatusBadge(status: string) {
-  switch (status) {
-    case 'active':
-      return <Badge className="bg-success text-white border-0">Active</Badge>
-    case 'completed':
-      return <Badge variant="secondary">Completed</Badge>
-    case 'draft':
-      return <Badge variant="outline">Draft</Badge>
-    default:
-      return <Badge variant="outline">{status}</Badge>
-  }
+type CourseMaterial = {
+  id: string
+  title: string
+  cid: string
+  sizeKb: number
+  uploadedAt: string
+  policy: string
 }
 
-type Course = typeof courses[0]
+type FacultyCourse = {
+  id: string
+  code: string
+  title: string
+  term: string
+  credits: number
+  studentIds: string[]
+  enrolledCount: number
+  averageScore: number
+  materials: CourseMaterial[]
+}
+
+type RosterRow = {
+  id: string
+  rollNo: string
+  name: string
+  internal: number
+  external: number
+  total: number
+  grade: string
+  status: 'valid' | 'invalid'
+}
 
 export default function CourseManagementPage() {
   const [searchQuery, setSearchQuery] = useState('')
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
-  const [drawerMode, setDrawerMode] = useState<'create' | 'edit' | 'view'>('create')
+  const [courses, setCourses] = useState<FacultyCourse[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedCourse, setSelectedCourse] = useState<FacultyCourse | null>(null)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [roster, setRoster] = useState<RosterRow[]>([])
+  const [loadingRoster, setLoadingRoster] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [uploadTitle, setUploadTitle] = useState('')
+  const [uploadBody, setUploadBody] = useState('')
+  const [uploadPolicy, setUploadPolicy] = useState('(role=faculty OR role=student)')
 
-  const filteredCourses = courses.filter(
-    (course) =>
-      course.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.department.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const filteredCourses = useMemo(() => {
+    const query = searchQuery.toLowerCase()
+    return courses.filter(
+      (course) =>
+        course.code.toLowerCase().includes(query) ||
+        course.title.toLowerCase().includes(query) ||
+        course.term.toLowerCase().includes(query)
+    )
+  }, [courses, searchQuery])
 
-  const openDrawer = (mode: 'create' | 'edit' | 'view', course?: Course) => {
-    setDrawerMode(mode)
-    setSelectedCourse(course || null)
-    setDrawerOpen(true)
+  async function loadCourses() {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/faculty/courses', { cache: 'no-store' })
+      const data = await response.json()
+      const fetchedCourses = Array.isArray(data.courses) ? data.courses : []
+      setCourses(fetchedCourses)
+      return fetchedCourses
+    } catch {
+      setError('Unable to load courses.')
+      return []
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function loadRoster(courseId: string) {
+    setLoadingRoster(true)
+    try {
+      const response = await fetch(`/api/faculty/course/${courseId}/roster`, { cache: 'no-store' })
+      const data = await response.json()
+      setRoster(Array.isArray(data.roster) ? data.roster : [])
+    } catch {
+      setRoster([])
+    } finally {
+      setLoadingRoster(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadCourses()
+  }, [])
+
+  const openCourse = async (course: FacultyCourse) => {
+    setSelectedCourse(course)
+    setSheetOpen(true)
+    setMessage(null)
+    setError(null)
+    setUploadTitle(`${course.code} - Course Material`)
+    setUploadBody('')
+    setUploadPolicy('(role=faculty OR role=student)')
+    await loadRoster(course.id)
+  }
+
+  const handleUploadMaterial = async () => {
+    if (!selectedCourse || !uploadTitle.trim() || !uploadBody.trim()) return
+    setUploading(true)
+    setMessage(null)
+    setError(null)
+    try {
+      const response = await fetch('/api/ipfs/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `${selectedCourse.code}: ${uploadTitle.trim()}`,
+          type: 'course-material',
+          body: uploadBody.trim(),
+          policy: uploadPolicy.trim() || '(role=faculty OR role=student)',
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to upload material.')
+      }
+      setMessage(`Material uploaded with CID ${data.document?.cid ?? 'generated'}.`)
+      setUploadBody('')
+      const refreshedCourses = await loadCourses()
+      const refreshedCourse = refreshedCourses.find((course: FacultyCourse) => course.id === selectedCourse.id)
+      if (refreshedCourse) {
+        setSelectedCourse(refreshedCourse)
+      }
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : 'Failed to upload material.')
+    } finally {
+      setUploading(false)
+    }
   }
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-heading text-2xl font-bold text-navy-900">Course Management</h1>
-          <p className="text-navy-500">Manage courses, enrollments, and materials</p>
+          <p className="text-navy-500">Manage assigned courses, roster, and materials</p>
         </div>
-        <Button onClick={() => openDrawer('create')} className="bg-navy-700 hover:bg-navy-800">
-          <Plus className="mr-2 h-4 w-4" />
-          Create Course
-        </Button>
       </div>
 
-      {/* Filters */}
+      {error ? (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      ) : null}
+      {message ? (
+        <div className="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+          {message}
+        </div>
+      ) : null}
+
       <Card className="rounded-[12px] border-navy-100">
         <CardContent className="p-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="relative flex-1 min-w-[250px]">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-navy-400" />
-              <Input
-                placeholder="Search courses..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-white border-navy-200"
-              />
-            </div>
-            <Select defaultValue="all">
-              <SelectTrigger className="w-[180px] border-navy-200">
-                <SelectValue placeholder="Department" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Departments</SelectItem>
-                <SelectItem value="cs">Computer Science</SelectItem>
-                <SelectItem value="math">Mathematics</SelectItem>
-                <SelectItem value="physics">Physics</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select defaultValue="all">
-              <SelectTrigger className="w-[150px] border-navy-200">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="draft">Draft</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="outline" className="border-navy-200 text-navy-600">
-              <Filter className="mr-2 h-4 w-4" />
-              More Filters
-            </Button>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-navy-400" />
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search by code, title, or term..."
+              className="border-navy-200 bg-white pl-10"
+            />
           </div>
         </CardContent>
       </Card>
 
-      {/* Courses Table */}
       <Card className="rounded-[12px] border-navy-100">
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-navy-50 hover:bg-navy-50">
-                <TableHead className="font-semibold text-navy-700">Course ID</TableHead>
-                <TableHead className="font-semibold text-navy-700">Course Name</TableHead>
-                <TableHead className="font-semibold text-navy-700">Department</TableHead>
-                <TableHead className="font-semibold text-navy-700">Credits</TableHead>
-                <TableHead className="font-semibold text-navy-700">Semester</TableHead>
-                <TableHead className="font-semibold text-navy-700">Enrollment</TableHead>
-                <TableHead className="font-semibold text-navy-700">Status</TableHead>
-                <TableHead className="font-semibold text-navy-700 text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredCourses.map((course) => (
-                <TableRow
-                  key={course.id}
-                  className="cursor-pointer hover:bg-navy-50"
-                  onClick={() => openDrawer('view', course)}
-                >
-                  <TableCell className="font-mono font-medium text-navy-900">{course.id}</TableCell>
-                  <TableCell className="font-medium text-navy-900">{course.name}</TableCell>
-                  <TableCell className="text-navy-600">{course.department}</TableCell>
-                  <TableCell className="text-navy-600">{course.credits}</TableCell>
-                  <TableCell className="text-navy-600">{course.semester}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span className="text-navy-900">{course.enrolled}</span>
-                      <span className="text-navy-400">/</span>
-                      <span className="text-navy-500">{course.capacity}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{getStatusBadge(course.status)}</TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-navy-500">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => openDrawer('view', course)}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => openDrawer('edit', course)}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit Course
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 p-8 text-sm text-navy-600">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading courses...
+            </div>
+          ) : filteredCourses.length === 0 ? (
+            <div className="p-8 text-center text-sm text-navy-500">No course records found.</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-navy-50 hover:bg-navy-50">
+                  <TableHead className="font-semibold text-navy-700">Course</TableHead>
+                  <TableHead className="font-semibold text-navy-700">Term</TableHead>
+                  <TableHead className="font-semibold text-navy-700 text-center">Credits</TableHead>
+                  <TableHead className="font-semibold text-navy-700 text-center">Enrolled</TableHead>
+                  <TableHead className="font-semibold text-navy-700 text-center">Avg Score</TableHead>
+                  <TableHead className="font-semibold text-navy-700 text-center">Materials</TableHead>
+                  <TableHead className="font-semibold text-navy-700 text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredCourses.map((course) => (
+                  <TableRow key={course.id} className="hover:bg-navy-50">
+                    <TableCell>
+                      <div>
+                        <p className="font-mono text-sm text-navy-700">{course.code}</p>
+                        <p className="font-medium text-navy-900">{course.title}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-navy-600">{course.term}</TableCell>
+                    <TableCell className="text-center text-navy-700">{course.credits}</TableCell>
+                    <TableCell className="text-center text-navy-700">{course.enrolledCount}</TableCell>
+                    <TableCell className="text-center text-navy-700">{course.averageScore}</TableCell>
+                    <TableCell className="text-center text-navy-700">{course.materials.length}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="outline"
+                        className="border-navy-200 text-navy-600"
+                        onClick={() => void openCourse(course)}
+                      >
+                        <Eye className="mr-2 h-4 w-4" />
+                        View
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
-      {/* Course Drawer (600px wide) */}
-      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <SheetContent className="w-[600px] sm:max-w-[600px] overflow-y-auto">
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent className="w-full overflow-y-auto sm:max-w-3xl">
           <SheetHeader>
-            <SheetTitle className="font-heading text-xl">
-              {drawerMode === 'create' && 'Create New Course'}
-              {drawerMode === 'edit' && `Edit: ${selectedCourse?.name}`}
-              {drawerMode === 'view' && selectedCourse?.name}
+            <SheetTitle className="font-heading text-xl text-navy-900">
+              {selectedCourse ? `${selectedCourse.code} - ${selectedCourse.title}` : 'Course Details'}
             </SheetTitle>
             <SheetDescription>
-              {drawerMode === 'create' && 'Fill in the course details below'}
-              {drawerMode === 'edit' && 'Update the course information'}
-              {drawerMode === 'view' && `${selectedCourse?.id} - ${selectedCourse?.department}`}
+              {selectedCourse ? `${selectedCourse.term} · ${selectedCourse.credits} credits` : 'Select a course'}
             </SheetDescription>
           </SheetHeader>
 
-          {/* Create/Edit Form */}
-          {(drawerMode === 'create' || drawerMode === 'edit') && (
-            <div className="mt-6 space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="courseId">Course ID</Label>
-                  <Input
-                    id="courseId"
-                    defaultValue={selectedCourse?.id}
-                    placeholder="e.g., CS301"
-                    className="border-navy-200"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="credits">Credits</Label>
-                  <Input
-                    id="credits"
-                    type="number"
-                    defaultValue={selectedCourse?.credits}
-                    placeholder="e.g., 3"
-                    className="border-navy-200"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="courseName">Course Name</Label>
-                <Input
-                  id="courseName"
-                  defaultValue={selectedCourse?.name}
-                  placeholder="e.g., Data Structures & Algorithms"
-                  className="border-navy-200"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="department">Department</Label>
-                  <Select defaultValue={selectedCourse?.department || ''}>
-                    <SelectTrigger className="border-navy-200">
-                      <SelectValue placeholder="Select department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Computer Science">Computer Science</SelectItem>
-                      <SelectItem value="Mathematics">Mathematics</SelectItem>
-                      <SelectItem value="Physics">Physics</SelectItem>
-                      <SelectItem value="Engineering">Engineering</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="semester">Semester</Label>
-                  <Select defaultValue={selectedCourse?.semester || ''}>
-                    <SelectTrigger className="border-navy-200">
-                      <SelectValue placeholder="Select semester" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Spring 2026">Spring 2026</SelectItem>
-                      <SelectItem value="Fall 2026">Fall 2026</SelectItem>
-                      <SelectItem value="Summer 2026">Summer 2026</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="capacity">Capacity</Label>
-                <Input
-                  id="capacity"
-                  type="number"
-                  defaultValue={selectedCourse?.capacity}
-                  placeholder="Maximum students"
-                  className="border-navy-200"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Course description..."
-                  className="border-navy-200 min-h-[100px]"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4">
-                <Button variant="outline" onClick={() => setDrawerOpen(false)}>
-                  Cancel
-                </Button>
-                <Button className="bg-navy-700 hover:bg-navy-800">
-                  {drawerMode === 'create' ? 'Create Course' : 'Save Changes'}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* View Mode with Tabs */}
-          {drawerMode === 'view' && selectedCourse && (
-            <div className="mt-6">
-              {/* Course Info Header */}
-              <div className="mb-6 rounded-lg bg-navy-50 p-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-navy-500">Instructor:</span>
-                    <p className="font-medium text-navy-900">{selectedCourse.instructor}</p>
-                  </div>
-                  <div>
-                    <span className="text-navy-500">Credits:</span>
-                    <p className="font-medium text-navy-900">{selectedCourse.credits}</p>
-                  </div>
-                  <div>
-                    <span className="text-navy-500">Enrollment:</span>
-                    <p className="font-medium text-navy-900">{selectedCourse.enrolled}/{selectedCourse.capacity}</p>
-                  </div>
-                  <div>
-                    <span className="text-navy-500">Status:</span>
-                    <p className="mt-1">{getStatusBadge(selectedCourse.status)}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Tabs */}
+          {!selectedCourse ? null : (
+            <div className="mt-6 space-y-4">
               <Tabs defaultValue="students" className="w-full">
-                <TabsList className="w-full grid grid-cols-3">
-                  <TabsTrigger value="students" className="gap-2">
-                    <Users className="h-4 w-4" />
-                    Students
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="students">
+                    <Users className="mr-2 h-4 w-4" />
+                    Enrolled Students
                   </TabsTrigger>
-                  <TabsTrigger value="grades" className="gap-2">
-                    <FileSpreadsheet className="h-4 w-4" />
-                    Grades
-                  </TabsTrigger>
-                  <TabsTrigger value="materials" className="gap-2">
-                    <FolderOpen className="h-4 w-4" />
+                  <TabsTrigger value="materials">
+                    <FileText className="mr-2 h-4 w-4" />
                     Materials
                   </TabsTrigger>
                 </TabsList>
 
-                {/* Enrolled Students Tab */}
-                <TabsContent value="students" className="mt-4">
-                  <div className="rounded-lg border border-navy-100">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-navy-50 hover:bg-navy-50">
-                          <TableHead className="text-navy-700">ID</TableHead>
-                          <TableHead className="text-navy-700">Name</TableHead>
-                          <TableHead className="text-navy-700">Grade</TableHead>
-                          <TableHead className="text-navy-700">Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {enrolledStudents.map((student) => (
-                          <TableRow key={student.id}>
-                            <TableCell className="font-mono text-sm">{student.id}</TableCell>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium text-navy-900">{student.name}</p>
-                                <p className="text-xs text-navy-500">{student.email}</p>
-                              </div>
-                            </TableCell>
-                            <TableCell className="font-medium">{student.grade}</TableCell>
-                            <TableCell>
-                              {student.status === 'active' ? (
-                                <Badge className="bg-success text-white border-0">Active</Badge>
-                              ) : (
-                                <Badge variant="secondary">Dropped</Badge>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </TabsContent>
-
-                {/* Grades Tab */}
-                <TabsContent value="grades" className="mt-4">
-                  <div className="rounded-lg border border-navy-100 p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="font-medium text-navy-900">Grade Distribution</h4>
-                      <Button size="sm" className="bg-navy-700 hover:bg-navy-800">
-                        Enter Grades
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-5 gap-4 text-center">
-                      {['A', 'B', 'C', 'D', 'F'].map((grade) => (
-                        <div key={grade} className="rounded-lg bg-navy-50 p-3">
-                          <p className="text-2xl font-bold text-navy-900">{Math.floor(Math.random() * 15)}</p>
-                          <p className="text-sm text-navy-500">Grade {grade}</p>
+                <TabsContent value="students">
+                  <Card className="rounded-[12px] border-navy-100">
+                    <CardContent className="p-0">
+                      {loadingRoster ? (
+                        <div className="flex items-center justify-center gap-2 p-6 text-sm text-navy-600">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Loading students...
                         </div>
-                      ))}
-                    </div>
-                  </div>
+                      ) : roster.length === 0 ? (
+                        <div className="p-6 text-center text-sm text-navy-500">No student roster found.</div>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-navy-50 hover:bg-navy-50">
+                              <TableHead>Roll No</TableHead>
+                              <TableHead>Student</TableHead>
+                              <TableHead className="text-center">Internal</TableHead>
+                              <TableHead className="text-center">External</TableHead>
+                              <TableHead className="text-center">Total</TableHead>
+                              <TableHead className="text-center">Grade</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {roster.map((student) => (
+                              <TableRow key={student.id}>
+                                <TableCell className="font-mono text-sm">{student.rollNo}</TableCell>
+                                <TableCell className="font-medium">{student.name}</TableCell>
+                                <TableCell className="text-center">{student.internal}</TableCell>
+                                <TableCell className="text-center">{student.external}</TableCell>
+                                <TableCell className="text-center">{student.total}</TableCell>
+                                <TableCell className="text-center">{student.grade}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </CardContent>
+                  </Card>
                 </TabsContent>
 
-                {/* Materials Tab (IPFS) */}
-                <TabsContent value="materials" className="mt-4">
-                  <div className="space-y-4">
-                    {/* Upload Area */}
-                    <div className="rounded-lg border-2 border-dashed border-navy-200 p-6 text-center hover:border-navy-400 transition-colors">
-                      <Upload className="mx-auto h-8 w-8 text-navy-400" />
-                      <p className="mt-2 text-sm font-medium text-navy-900">Drop files to upload to IPFS</p>
-                      <p className="text-xs text-navy-500">or click to browse</p>
-                    </div>
+                <TabsContent value="materials" className="space-y-4">
+                  <Card className="rounded-[12px] border-navy-100">
+                    <CardHeader>
+                      <CardTitle className="text-base text-navy-900">Upload Course Material</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="material-title">Title</Label>
+                        <Input
+                          id="material-title"
+                          value={uploadTitle}
+                          onChange={(event) => setUploadTitle(event.target.value)}
+                          className="border-navy-200"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="material-policy">Access Policy</Label>
+                        <Input
+                          id="material-policy"
+                          value={uploadPolicy}
+                          onChange={(event) => setUploadPolicy(event.target.value)}
+                          className="border-navy-200"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="material-body">Content</Label>
+                        <Textarea
+                          id="material-body"
+                          value={uploadBody}
+                          onChange={(event) => setUploadBody(event.target.value)}
+                          placeholder="Paste lecture notes, assignment brief, or resource details..."
+                          rows={5}
+                          className="border-navy-200"
+                        />
+                      </div>
+                      <Button
+                        onClick={() => void handleUploadMaterial()}
+                        disabled={uploading || !uploadTitle.trim() || !uploadBody.trim()}
+                        className="bg-navy-700 hover:bg-navy-800"
+                      >
+                        {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                        Upload to IPFS
+                      </Button>
+                    </CardContent>
+                  </Card>
 
-                    {/* Materials List */}
-                    <div className="rounded-lg border border-navy-100">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-navy-50 hover:bg-navy-50">
-                            <TableHead className="text-navy-700">File Name</TableHead>
-                            <TableHead className="text-navy-700">Size</TableHead>
-                            <TableHead className="text-navy-700">IPFS Hash</TableHead>
-                            <TableHead className="text-navy-700">Uploaded</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {courseMaterials.map((material) => (
-                            <TableRow key={material.id}>
-                              <TableCell className="font-medium text-navy-900">{material.name}</TableCell>
-                              <TableCell className="text-navy-600">{material.size}</TableCell>
-                              <TableCell className="font-blockchain text-navy-500">{material.ipfsHash}</TableCell>
-                              <TableCell className="text-navy-600">{material.uploadedAt}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
+                  <Card className="rounded-[12px] border-navy-100">
+                    <CardHeader>
+                      <CardTitle className="text-base text-navy-900">Published Materials</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {(selectedCourse.materials ?? []).length === 0 ? (
+                        <p className="text-sm text-navy-500">No course materials uploaded yet.</p>
+                      ) : (
+                        selectedCourse.materials.map((material) => (
+                          <div
+                            key={material.id}
+                            className="rounded-lg border border-navy-100 bg-navy-50 p-3"
+                          >
+                            <p className="font-medium text-navy-900">{material.title}</p>
+                            <p className="mt-1 text-xs text-navy-600">CID: {material.cid}</p>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <Badge variant="outline">{material.sizeKb} KB</Badge>
+                              <Badge variant="outline">{new Date(material.uploadedAt).toLocaleDateString()}</Badge>
+                              <Badge variant="outline">{material.policy}</Badge>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </CardContent>
+                  </Card>
                 </TabsContent>
               </Tabs>
-
-              {/* Action Buttons */}
-              <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-navy-100">
-                <Button variant="outline" onClick={() => openDrawer('edit', selectedCourse)}>
-                  <Edit className="mr-2 h-4 w-4" />
-                  Edit Course
-                </Button>
-                <Button className="bg-navy-700 hover:bg-navy-800">
-                  Manage Enrollment
-                </Button>
-              </div>
             </div>
           )}
         </SheetContent>

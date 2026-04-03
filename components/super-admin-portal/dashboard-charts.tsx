@@ -1,54 +1,21 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Area,
-  AreaChart,
-  Line,
-  LineChart,
-  Bar,
-  BarChart,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts"
+import { Area, AreaChart, Line, LineChart, Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 
-const tpsData = [
-  { time: "00:00", tps: 850 },
-  { time: "02:00", tps: 620 },
-  { time: "04:00", tps: 430 },
-  { time: "06:00", tps: 580 },
-  { time: "08:00", tps: 1200 },
-  { time: "10:00", tps: 1890 },
-  { time: "12:00", tps: 2100 },
-  { time: "14:00", tps: 1950 },
-  { time: "16:00", tps: 2400 },
-  { time: "18:00", tps: 1800 },
-  { time: "20:00", tps: 1400 },
-  { time: "22:00", tps: 980 },
-]
+interface TPSChartProps {
+  data: Array<{ time: string; tps: number }>
+}
 
-const kafkaLagData = [
-  { time: "00:00", studentTopic: 120, facultyTopic: 80, credentialsTopic: 200 },
-  { time: "04:00", studentTopic: 150, facultyTopic: 90, credentialsTopic: 180 },
-  { time: "08:00", studentTopic: 450, facultyTopic: 320, credentialsTopic: 890 },
-  { time: "12:00", studentTopic: 380, facultyTopic: 250, credentialsTopic: 650 },
-  { time: "16:00", studentTopic: 520, facultyTopic: 380, credentialsTopic: 1200 },
-  { time: "20:00", studentTopic: 280, facultyTopic: 150, credentialsTopic: 420 },
-]
+interface KafkaLagChartProps {
+  data: Array<{ time: string; studentTopic: number; facultyTopic: number; credentialsTopic: number }>
+}
 
-const errorRateData = [
-  { endpoint: "/api/students", rate: 0.12 },
-  { endpoint: "/api/faculty", rate: 0.08 },
-  { endpoint: "/api/credentials", rate: 0.25 },
-  { endpoint: "/api/blockchain", rate: 0.15 },
-  { endpoint: "/api/ipfs", rate: 0.32 },
-  { endpoint: "/api/auth", rate: 0.05 },
-]
+interface ErrorRateChartProps {
+  data: Array<{ endpoint: string; rate: number }>
+}
 
-export function TPSChart() {
+export function TPSChart({ data }: TPSChartProps) {
   return (
     <Card className="bg-card border-border">
       <CardHeader className="pb-2">
@@ -57,7 +24,7 @@ export function TPSChart() {
       <CardContent>
         <div className="h-[200px]">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={tpsData}>
+            <AreaChart data={data}>
               <defs>
                 <linearGradient id="tpsGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#D64045" stopOpacity={0.3} />
@@ -103,7 +70,7 @@ export function TPSChart() {
   )
 }
 
-export function KafkaLagChart() {
+export function KafkaLagChart({ data }: KafkaLagChartProps) {
   return (
     <Card className="bg-card border-border">
       <CardHeader className="pb-2">
@@ -112,7 +79,7 @@ export function KafkaLagChart() {
       <CardContent>
         <div className="h-[200px]">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={kafkaLagData}>
+            <LineChart data={data}>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis
                 dataKey="time"
@@ -182,7 +149,7 @@ export function KafkaLagChart() {
   )
 }
 
-export function ErrorRateChart() {
+export function ErrorRateChart({ data }: ErrorRateChartProps) {
   return (
     <Card className="bg-card border-border">
       <CardHeader className="pb-2">
@@ -191,7 +158,7 @@ export function ErrorRateChart() {
       <CardContent>
         <div className="h-[200px]">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={errorRateData} layout="vertical">
+            <BarChart data={data} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
               <XAxis
                 type="number"

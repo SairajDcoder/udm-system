@@ -165,7 +165,7 @@ export function InvalidResult({ hash }: InvalidResultProps) {
                     <ChevronDown className="h-5 w-5 text-muted-foreground" />
                   )}
                 </CardTitle>
-              </CollapsibleTrigger>
+              </CardHeader>
             </CollapsibleTrigger>
             <CollapsibleContent>
               <CardContent className="pt-0">

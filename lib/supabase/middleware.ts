@@ -29,9 +29,14 @@ export async function updateSession(request: NextRequest) {
     },
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user = null
+  try {
+    const result = await supabase.auth.getUser()
+    user = result.data.user
+  } catch (error) {
+    console.error("Supabase session lookup failed in middleware:", error)
+    return supabaseResponse
+  }
 
   // Protected routes - redirect to login if not authenticated
   if (request.nextUrl.pathname.startsWith('/dashboard') && !user) {

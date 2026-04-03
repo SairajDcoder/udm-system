@@ -1,26 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import crypto from "crypto";
 import { sendMail } from "@/lib/utils/email";
+import { createOtpChallenge } from "@/lib/unichain/service";
 export async function POST(req: NextRequest) {
   try {
     const { email } = await req.json();
-    if (!email) {
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    if (!normalizedEmail) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    // Hash it for simple security
-    const hash = crypto.createHash('sha256').update(otp + process.env.NEXT_PUBLIC_SUPABASE_URL).digest('hex');
-    
-    const cookieStore = await cookies();
-    cookieStore.set('otp_hash', hash, { httpOnly: true, secure: process.env.NODE_ENV === 'production', maxAge: 300 }); // 5 minutes
-    cookieStore.set('otp_email', email, { httpOnly: true, secure: process.env.NODE_ENV === 'production', maxAge: 300 });
+    const { code: otp } = await createOtpChallenge(normalizedEmail);
+    const response = NextResponse.json({ success: true, email: normalizedEmail });
+    response.cookies.set('otp_email', normalizedEmail, { httpOnly: true, secure: process.env.NODE_ENV === 'production', maxAge: 300, path: "/" });
     
     // Send email via Nodemailer SMTP
     await sendMail({
-      to: email,
+      to: normalizedEmail,
       subject: "Your UniChain Verification Code",
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto;">
@@ -35,7 +30,7 @@ export async function POST(req: NextRequest) {
       `
     });
 
-    return NextResponse.json({ success: true });
+    return response;
   } catch (error) {
     console.error("2FA Send Error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

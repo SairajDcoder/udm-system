@@ -1,30 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { AdminHeader } from "@/components/super-admin-portal/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Switch } from "@/components/ui/switch"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from "@/components/ui/dialog"
 import {
   Select,
   SelectContent,
@@ -33,160 +13,84 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Users, Search, Shield, ShieldCheck, ShieldAlert, MoreVertical, Key, Ban, Trash2, UserCog } from "lucide-react"
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Users, Search, ShieldCheck, ShieldAlert, Loader2 } from "lucide-react"
 
-interface User {
+type SystemUser = {
   id: string
-  name: string
-  email: string
-  portal: "Student" | "Faculty" | "Admin" | "Institutional"
-  role: string
+  role: "student" | "faculty" | "admin" | "verifier"
+  fullName: string
+  institutionalEmail: string
+  department?: string
   mfaEnabled: boolean
-  status: "active" | "inactive" | "suspended"
-  lastLogin: string
+  keyStatus: "active" | "rotated"
   createdAt: string
-}
-
-const users: User[] = [
-  { id: "USR001", name: "Alice Johnson", email: "alice.johnson@university.edu", portal: "Student", role: "Student", mfaEnabled: true, status: "active", lastLogin: "2 hours ago", createdAt: "2023-09-01" },
-  { id: "USR002", name: "Dr. Robert Smith", email: "r.smith@university.edu", portal: "Faculty", role: "Professor", mfaEnabled: true, status: "active", lastLogin: "1 hour ago", createdAt: "2022-01-15" },
-  { id: "USR003", name: "Sarah Williams", email: "s.williams@university.edu", portal: "Admin", role: "Department Admin", mfaEnabled: true, status: "active", lastLogin: "30 min ago", createdAt: "2021-06-20" },
-  { id: "USR004", name: "Michael Chen", email: "m.chen@university.edu", portal: "Student", role: "Graduate Student", mfaEnabled: false, status: "active", lastLogin: "5 hours ago", createdAt: "2024-01-10" },
-  { id: "USR005", name: "Dr. Emily Davis", email: "e.davis@university.edu", portal: "Faculty", role: "Associate Professor", mfaEnabled: true, status: "inactive", lastLogin: "3 days ago", createdAt: "2020-09-01" },
-  { id: "USR006", name: "James Wilson", email: "j.wilson@university.edu", portal: "Institutional", role: "Registrar", mfaEnabled: true, status: "active", lastLogin: "4 hours ago", createdAt: "2019-03-15" },
-  { id: "USR007", name: "Lisa Anderson", email: "l.anderson@university.edu", portal: "Student", role: "Student", mfaEnabled: false, status: "suspended", lastLogin: "2 weeks ago", createdAt: "2023-09-01" },
-  { id: "USR008", name: "David Brown", email: "d.brown@university.edu", portal: "Admin", role: "Super Admin", mfaEnabled: true, status: "active", lastLogin: "10 min ago", createdAt: "2018-01-01" },
-  { id: "USR009", name: "Jennifer Taylor", email: "j.taylor@university.edu", portal: "Faculty", role: "Lecturer", mfaEnabled: true, status: "active", lastLogin: "1 day ago", createdAt: "2022-08-20" },
-  { id: "USR010", name: "Chris Martinez", email: "c.martinez@university.edu", portal: "Student", role: "Undergraduate", mfaEnabled: false, status: "active", lastLogin: "6 hours ago", createdAt: "2024-01-15" },
-]
-
-function BulkActionsDialog({ selectedCount }: { selectedCount: number }) {
-  return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" disabled={selectedCount === 0}>
-          Bulk Actions ({selectedCount})
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="bg-card border-border">
-        <DialogHeader>
-          <DialogTitle className="font-serif">Bulk Actions</DialogTitle>
-          <DialogDescription>
-            Apply actions to {selectedCount} selected users
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3 py-4">
-          <Button variant="outline" className="w-full justify-start gap-2">
-            <ShieldCheck className="h-4 w-4 text-success" />
-            Enable MFA for all
-          </Button>
-          <Button variant="outline" className="w-full justify-start gap-2">
-            <Key className="h-4 w-4 text-secondary" />
-            Force Password Reset
-          </Button>
-          <Button variant="outline" className="w-full justify-start gap-2 text-warning">
-            <Ban className="h-4 w-4" />
-            Suspend Users
-          </Button>
-          <Button variant="outline" className="w-full justify-start gap-2 text-error">
-            <Trash2 className="h-4 w-4" />
-            Delete Users
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function UserActionsMenu({ user }: { user: User }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8">
-          <MoreVertical className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem>
-          <UserCog className="mr-2 h-4 w-4" />
-          Edit User
-        </DropdownMenuItem>
-        <DropdownMenuItem>
-          <Key className="mr-2 h-4 w-4" />
-          Reset Password
-        </DropdownMenuItem>
-        <DropdownMenuItem>
-          <ShieldCheck className="mr-2 h-4 w-4" />
-          {user.mfaEnabled ? "Disable MFA" : "Force MFA"}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-warning">
-          <Ban className="mr-2 h-4 w-4" />
-          {user.status === "suspended" ? "Unsuspend" : "Suspend"}
-        </DropdownMenuItem>
-        <DropdownMenuItem className="text-error">
-          <Trash2 className="mr-2 h-4 w-4" />
-          Delete User
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
+  lastLoginAt?: string
 }
 
 export default function UserManagementPage() {
-  const [selectedUsers, setSelectedUsers] = useState<string[]>([])
+  const [users, setUsers] = useState<SystemUser[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const [portalFilter, setPortalFilter] = useState<string>("all")
+  const [roleFilter, setRoleFilter] = useState("all")
 
-  const filteredUsers = users.filter((user) => {
-    const matchesSearch =
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesPortal = portalFilter === "all" || user.portal === portalFilter
-    return matchesSearch && matchesPortal
-  })
-
-  const toggleSelectAll = () => {
-    if (selectedUsers.length === filteredUsers.length) {
-      setSelectedUsers([])
-    } else {
-      setSelectedUsers(filteredUsers.map((u) => u.id))
+  useEffect(() => {
+    async function loadUsers() {
+      setLoading(true)
+      setError(null)
+      try {
+        const response = await fetch("/api/system/users", { cache: "no-store" })
+        const data = await response.json()
+        setUsers(Array.isArray(data.users) ? data.users : [])
+      } catch {
+        setError("Failed to load system users.")
+      } finally {
+        setLoading(false)
+      }
     }
-  }
+    void loadUsers()
+  }, [])
 
-  const toggleSelectUser = (userId: string) => {
-    setSelectedUsers((prev) =>
-      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
-    )
-  }
+  const filteredUsers = useMemo(() => {
+    const query = searchQuery.toLowerCase()
+    return users.filter((user) => {
+      const matchesQuery =
+        user.fullName.toLowerCase().includes(query) ||
+        user.institutionalEmail.toLowerCase().includes(query) ||
+        user.id.toLowerCase().includes(query)
+      const matchesRole = roleFilter === "all" || user.role === roleFilter
+      return matchesQuery && matchesRole
+    })
+  }, [users, searchQuery, roleFilter])
 
-  const portalColors = {
-    Student: "bg-info/20 text-info border-info/30",
-    Faculty: "bg-secondary/20 text-secondary border-secondary/30",
-    Admin: "bg-primary/20 text-primary border-primary/30",
-    Institutional: "bg-success/20 text-success border-success/30",
-  }
+  const activeUsers = users.filter((user) => user.keyStatus === "active").length
+  const mfaEnabled = users.filter((user) => user.mfaEnabled).length
+  const adminCount = users.filter((user) => user.role === "admin").length
 
   return (
     <div className="min-h-screen">
       <AdminHeader title="User & Role Management" code="ADM-06" />
-      <main className="p-6 space-y-6">
-        {/* Stats */}
+      <main className="space-y-6 p-6">
+        {error ? (
+          <div className="rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+            {error}
+          </div>
+        ) : null}
+
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <Card className="bg-card border-border">
             <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                  <Users className="h-6 w-6 text-primary" />
-                </div>
+              <div className="flex items-center gap-3">
+                <Users className="h-5 w-5 text-primary" />
                 <div>
-                  <p className="text-xs text-muted-foreground uppercase">Total Users</p>
+                  <p className="text-xs uppercase text-muted-foreground">Total Users</p>
                   <p className="font-mono text-2xl font-bold">{users.length}</p>
                 </div>
               </div>
@@ -194,151 +98,123 @@ export default function UserManagementPage() {
           </Card>
           <Card className="bg-card border-border">
             <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-success/10">
-                  <Shield className="h-6 w-6 text-success" />
-                </div>
+              <div className="flex items-center gap-3">
+                <ShieldCheck className="h-5 w-5 text-success" />
                 <div>
-                  <p className="text-xs text-muted-foreground uppercase">Active Users</p>
-                  <p className="font-mono text-2xl font-bold">
-                    {users.filter((u) => u.status === "active").length}
-                  </p>
+                  <p className="text-xs uppercase text-muted-foreground">Active Keys</p>
+                  <p className="font-mono text-2xl font-bold">{activeUsers}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card className="bg-card border-border">
             <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary/10">
-                  <ShieldCheck className="h-6 w-6 text-secondary" />
-                </div>
+              <div className="flex items-center gap-3">
+                <ShieldCheck className="h-5 w-5 text-secondary" />
                 <div>
-                  <p className="text-xs text-muted-foreground uppercase">MFA Enabled</p>
-                  <p className="font-mono text-2xl font-bold">
-                    {users.filter((u) => u.mfaEnabled).length}
-                  </p>
+                  <p className="text-xs uppercase text-muted-foreground">MFA Enabled</p>
+                  <p className="font-mono text-2xl font-bold">{mfaEnabled}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card className="bg-card border-border">
             <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-error/10">
-                  <ShieldAlert className="h-6 w-6 text-error" />
-                </div>
+              <div className="flex items-center gap-3">
+                <ShieldAlert className="h-5 w-5 text-warning" />
                 <div>
-                  <p className="text-xs text-muted-foreground uppercase">Suspended</p>
-                  <p className="font-mono text-2xl font-bold">
-                    {users.filter((u) => u.status === "suspended").length}
-                  </p>
+                  <p className="text-xs uppercase text-muted-foreground">Admins</p>
+                  <p className="font-mono text-2xl font-bold">{adminCount}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Users Table */}
         <Card className="bg-card border-border">
           <CardHeader>
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <CardTitle className="font-serif text-base flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
-                User Directory
-              </CardTitle>
+              <CardTitle className="font-serif text-base">User Directory</CardTitle>
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    placeholder="Search users..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-64 pl-9 bg-muted border-border"
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Search users..."
+                    className="w-64 bg-muted border-border pl-9"
                   />
                 </div>
-                <Select value={portalFilter} onValueChange={setPortalFilter}>
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
                   <SelectTrigger className="w-[150px] bg-muted border-border">
-                    <SelectValue placeholder="All Portals" />
+                    <SelectValue placeholder="Role" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Portals</SelectItem>
-                    <SelectItem value="Student">Student</SelectItem>
-                    <SelectItem value="Faculty">Faculty</SelectItem>
-                    <SelectItem value="Admin">Admin</SelectItem>
-                    <SelectItem value="Institutional">Institutional</SelectItem>
+                    <SelectItem value="all">All Roles</SelectItem>
+                    <SelectItem value="student">Student</SelectItem>
+                    <SelectItem value="faculty">Faculty</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="verifier">Verifier</SelectItem>
                   </SelectContent>
                 </Select>
-                <BulkActionsDialog selectedCount={selectedUsers.length} />
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border hover:bg-transparent">
-                  <TableHead className="w-[50px]">
-                    <Checkbox
-                      checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0}
-                      onCheckedChange={toggleSelectAll}
-                    />
-                  </TableHead>
-                  <TableHead className="text-muted-foreground">User</TableHead>
-                  <TableHead className="text-muted-foreground">Portal</TableHead>
-                  <TableHead className="text-muted-foreground">Role</TableHead>
-                  <TableHead className="text-muted-foreground">MFA</TableHead>
-                  <TableHead className="text-muted-foreground">Status</TableHead>
-                  <TableHead className="text-muted-foreground">Last Login</TableHead>
-                  <TableHead className="text-muted-foreground text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map((user) => (
-                  <TableRow key={user.id} className="border-border">
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedUsers.includes(user.id)}
-                        onCheckedChange={() => toggleSelectUser(user.id)}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{user.name}</p>
-                        <p className="text-xs text-muted-foreground">{user.email}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={portalColors[user.portal]}>
-                        {user.portal}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm">{user.role}</TableCell>
-                    <TableCell>
-                      <Switch checked={user.mfaEnabled} />
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        className={
-                          user.status === "active"
-                            ? "bg-success/20 text-success border-success/30"
-                            : user.status === "inactive"
-                            ? "bg-muted text-muted-foreground border-muted"
-                            : "bg-error/20 text-error border-error/30"
-                        }
-                      >
-                        {user.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {user.lastLogin}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <UserActionsMenu user={user} />
-                    </TableCell>
+            {loading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading users...
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-border hover:bg-transparent">
+                    <TableHead>User</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>MFA</TableHead>
+                    <TableHead>Key Status</TableHead>
+                    <TableHead>Last Login</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.map((user) => (
+                    <TableRow key={user.id} className="border-border">
+                      <TableCell>
+                        <p className="font-medium">{user.fullName}</p>
+                        <p className="text-xs text-muted-foreground">{user.institutionalEmail}</p>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="capitalize">{user.role}</Badge>
+                      </TableCell>
+                      <TableCell>{user.department ?? "-"}</TableCell>
+                      <TableCell>
+                        {user.mfaEnabled ? (
+                          <Badge className="bg-success/20 text-success border-success/30">Enabled</Badge>
+                        ) : (
+                          <Badge className="bg-warning/20 text-warning border-warning/30">Disabled</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={
+                            user.keyStatus === "active"
+                              ? "bg-success/20 text-success border-success/30"
+                              : "bg-warning/20 text-warning border-warning/30"
+                          }
+                        >
+                          {user.keyStatus}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : "Never"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </main>

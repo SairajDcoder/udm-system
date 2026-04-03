@@ -1,0 +1,52 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_24-6cac21bb9ccea4ef1fc9323734124096d3da5fab",
+  "solcVersion": "0.8.24",
+  "solcLongVersion": "0.8.24+commit.e11b9ed9",
+  "compilerType": "solc",
+  "userSourceNameMap": {
+    "contracts/AccessControl.sol": "project/contracts/AccessControl.sol",
+    "contracts/AuditLogger.sol": "project/contracts/AuditLogger.sol",
+    "contracts/CredentialIssuance.sol": "project/contracts/CredentialIssuance.sol",
+    "contracts/DIDRegistry.sol": "project/contracts/DIDRegistry.sol",
+    "contracts/TranscriptManager.sol": "project/contracts/TranscriptManager.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "shanghai",
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode",
+            "evm.methodIdentifiers",
+            "metadata"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/AccessControl.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\n\ncontract AccessControlRegistry {\n    struct AccessGrant {\n        string studentId;\n        string verifierEmail;\n        string recordType;\n        uint256 expiryDate;\n        bool active;\n    }\n\n    mapping(string => AccessGrant) public grants;\n\n    event AccessGranted(string indexed grantId, string studentId, string verifierEmail);\n    event AccessRevoked(string indexed grantId, string studentId);\n\n    function grantAccess(string memory _grantId, string memory _studentId, string memory _verifierEmail, string memory _recordType, uint256 _expiry) public {\n        grants[_grantId] = AccessGrant({\n            studentId: _studentId,\n            verifierEmail: _verifierEmail,\n            recordType: _recordType,\n            expiryDate: _expiry,\n            active: true\n        });\n\n        emit AccessGranted(_grantId, _studentId, _verifierEmail);\n    }\n\n    function revokeAccess(string memory _grantId) public {\n        require(grants[_grantId].active, \"Grant is already inactive\");\n        grants[_grantId].active = false;\n        \n        emit AccessRevoked(_grantId, grants[_grantId].studentId);\n    }\n}\n"
+      },
+      "project/contracts/AuditLogger.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\n\ncontract AuditLogger {\n    struct LogEntry {\n        address actor;\n        string action;\n        string targetType;\n        string targetId;\n        string detailsCid;\n        uint256 timestamp;\n    }\n\n    LogEntry[] public logs;\n\n    event LogCreated(uint256 indexed logId, address indexed actor, string action);\n\n    function createLog(string memory _action, string memory _targetType, string memory _targetId, string memory _detailsCid) public {\n        logs.push(LogEntry({\n            actor: msg.sender,\n            action: _action,\n            targetType: _targetType,\n            targetId: _targetId,\n            detailsCid: _detailsCid,\n            timestamp: block.timestamp\n        }));\n        emit LogCreated(logs.length - 1, msg.sender, _action);\n    }\n\n    function getLogsCount() public view returns (uint256) {\n        return logs.length;\n    }\n}\n"
+      },
+      "project/contracts/CredentialIssuance.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\n\ncontract CredentialIssuance {\n    struct Credential {\n        string studentId;\n        string credType;\n        string hashId;\n        string cid;\n        address issuer;\n        uint256 issueDate;\n        bool isActive;\n    }\n\n    mapping(string => Credential) public credentials;\n\n    event CredentialIssued(string indexed hashId, string studentId, address indexed issuer);\n\n    function issueCredential(\n        string memory _studentId,\n        string memory _credType,\n        string memory _hashId,\n        string memory _cid\n    ) public {\n        require(bytes(credentials[_hashId].hashId).length == 0, \"Credential already exists\");\n\n        credentials[_hashId] = Credential({\n            studentId: _studentId,\n            credType: _credType,\n            hashId: _hashId,\n            cid: _cid,\n            issuer: msg.sender,\n            issueDate: block.timestamp,\n            isActive: true\n        });\n\n        emit CredentialIssued(_hashId, _studentId, msg.sender);\n    }\n\n    function verifyCredential(string memory _hashId) public view returns (bool, string memory, address) {\n        Credential memory cred = credentials[_hashId];\n        return (cred.isActive, cred.cid, cred.issuer);\n    }\n}\n"
+      },
+      "project/contracts/DIDRegistry.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\n\ncontract DIDRegistry {\n    struct UserDID {\n        address walletAddress;\n        string did;\n        string role;\n        string emailHash;\n        bool isActive;\n    }\n\n    mapping(address => UserDID) public dids;\n    mapping(string => address) public didToAddress;\n\n    event DIDRegistered(address indexed wallet, string did, string role);\n\n    function registerDID(string memory _did, string memory _role, string memory _emailHash) public {\n        require(!dids[msg.sender].isActive, \"DID already registered for this wallet\");\n        require(didToAddress[_did] == address(0), \"DID already exists\");\n\n        dids[msg.sender] = UserDID({\n            walletAddress: msg.sender,\n            did: _did,\n            role: _role,\n            emailHash: _emailHash,\n            isActive: true\n        });\n        didToAddress[_did] = msg.sender;\n\n        emit DIDRegistered(msg.sender, _did, _role);\n    }\n\n    function getDID(address _wallet) public view returns (string memory, string memory, bool) {\n        UserDID memory user = dids[_wallet];\n        return (user.did, user.role, user.isActive);\n    }\n}\n"
+      },
+      "project/contracts/TranscriptManager.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\n\ncontract TranscriptManager {\n    struct Transcript {\n        string studentId;\n        string term;\n        string cid;\n        address issuer;\n        uint256 timestamp;\n    }\n\n    mapping(string => Transcript) public transcripts;\n\n    event TranscriptLogged(string indexed studentId, string term, string cid, address indexed issuer);\n\n    function logTranscript(string memory _studentId, string memory _term, string memory _cid) public {\n        transcripts[_cid] = Transcript({\n            studentId: _studentId,\n            term: _term,\n            cid: _cid,\n            issuer: msg.sender,\n            timestamp: block.timestamp\n        });\n\n        emit TranscriptLogged(_studentId, _term, _cid, msg.sender);\n    }\n}\n"
+      }
+    }
+  }
+}

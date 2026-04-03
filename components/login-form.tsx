@@ -58,9 +58,10 @@ export function LoginForm() {
     e.preventDefault()
     setError("")
     setIsLoading(true)
+    const normalizedEmail = email.trim().toLowerCase()
 
     const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
+      email: normalizedEmail,
       password,
     })
 
@@ -75,17 +76,23 @@ export function LoginForm() {
       // Step 2: Send OTP email with Resend API route
       const res = await fetch("/api/auth/send-2fa", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: normalizedEmail }),
       })
 
       if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || "Failed to send 2FA email")
+        const raw = await res.text()
+        try {
+          const data = JSON.parse(raw) as { error?: string }
+          throw new Error(data.error || "Failed to send 2FA email")
+        } catch {
+          throw new Error(raw || "Failed to send 2FA email")
+        }
       }
 
       // On success, go to 2FA verification
-      router.push(`/verify?email=${encodeURIComponent(email)}&role=${selectedRole}`)
+      router.push(`/verify?email=${encodeURIComponent(normalizedEmail)}&role=${selectedRole}`)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Error sending 2FA email"
       setError(message)

@@ -7,6 +7,7 @@ import { Check, ChevronDown, Upload, Lock, Eye, EyeOff, Copy, CheckCircle2, Load
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 import { useAppKit, useAppKitAccount } from "@reown/appkit/react"
+import { QRCodeSVG } from "qrcode.react"
 
 type Role = "student" | "faculty" | "admin"
 type Gender = "male" | "female" | "prefer-not-to-say"
@@ -73,6 +74,7 @@ export function RegistrationForm() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [registeredWalletAddress, setRegisteredWalletAddress] = useState("")
+  const [mfaUri, setMfaUri] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState("")
@@ -112,7 +114,10 @@ export function RegistrationForm() {
           password: formData.password,
           data: {
             full_name: formData.fullName,
+            personal_email: formData.personalEmail,
             role: formData.role,
+            date_of_birth: formData.dateOfBirth,
+            gender: formData.gender,
             department: formData.department,
             programme: formData.programme,
             enrollment_id: formData.enrollmentId,
@@ -128,6 +133,10 @@ export function RegistrationForm() {
 
       if (!response.ok) {
         throw new Error(resData.error || "Failed to register account")
+      }
+
+      if (resData.mfaUri) {
+        setMfaUri(resData.mfaUri)
       }
 
       setRegisteredWalletAddress(connectedWallet || resData.user?.id?.slice(0, 42) || "")
@@ -225,9 +234,19 @@ export function RegistrationForm() {
           Account Created!
         </h3>
         
-        <p className="text-[#5C667A] mb-8 max-w-sm mx-auto">
-          Your account was effectively created. Please check your email inbox to verify your account before logging in.
-        </p>
+        {mfaUri ? (
+          <div className="mb-8 p-6 bg-white rounded-xl border border-gray-200 shadow-sm inline-block mx-auto">
+             <h4 className="font-bold text-navy-900 mb-2">Configure Multi-Factor Authentication</h4>
+             <p className="text-sm text-gray-500 mb-4 max-w-sm">Scan this QR code with Google Authenticator or Authy. You will need to enter a generated code when logging in.</p>
+             <div className="flex justify-center p-4 bg-gray-50 rounded-lg">
+                <QRCodeSVG value={mfaUri} size={200} />
+             </div>
+          </div>
+        ) : (
+          <p className="text-[#5C667A] mb-8 max-w-sm mx-auto">
+            Your account was effectively created. Please check your email inbox to verify your account before logging in.
+          </p>
+        )}
 
         {/* Wallet Address */}
         <div className="bg-[#F8F9FB] rounded-lg p-4 flex items-center justify-between gap-3">

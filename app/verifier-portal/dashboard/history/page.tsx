@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Search, Filter, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -24,73 +24,30 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 
-// Mock data for demonstration
-const mockHistory = [
-  {
-    id: "1",
-    hash: "0x7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069",
-    holderName: "Sarah Mitchell",
-    date: "2024-03-15T10:30:00Z",
-    result: "valid",
-    vScore: 98,
-  },
-  {
-    id: "2",
-    hash: "0x9a2c1e3f4d5b6a7c8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d",
-    holderName: "Michael Chen",
-    date: "2024-03-14T15:45:00Z",
-    result: "valid",
-    vScore: 95,
-  },
-  {
-    id: "3",
-    hash: "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b",
-    holderName: "Unknown",
-    date: "2024-03-14T09:15:00Z",
-    result: "invalid",
-    vScore: 0,
-  },
-  {
-    id: "4",
-    hash: "0x2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3",
-    holderName: "Emily Rodriguez",
-    date: "2024-03-13T14:20:00Z",
-    result: "valid",
-    vScore: 100,
-  },
-  {
-    id: "5",
-    hash: "0x3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4",
-    holderName: "James Wilson",
-    date: "2024-03-12T11:00:00Z",
-    result: "valid",
-    vScore: 92,
-  },
-  {
-    id: "6",
-    hash: "0x4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5",
-    holderName: "Unknown",
-    date: "2024-03-11T16:30:00Z",
-    result: "invalid",
-    vScore: 15,
-  },
-  {
-    id: "7",
-    hash: "0x5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6",
-    holderName: "Anna Thompson",
-    date: "2024-03-10T08:45:00Z",
-    result: "valid",
-    vScore: 88,
-  },
-]
+type VerificationHistoryItem = {
+  id: string
+  hash: string
+  holderName: string
+  checkedAt: string
+  result: "valid" | "invalid"
+  vScore: number
+}
 
 export default function VerificationHistoryPage() {
+  const [history, setHistory] = useState<VerificationHistoryItem[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [filterStatus, setFilterStatus] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 5
 
-  const filteredHistory = mockHistory.filter((item) => {
+  useEffect(() => {
+    fetch("/api/verifier/history")
+      .then((response) => response.json())
+      .then((payload) => setHistory(payload.history))
+      .catch(() => setHistory([]))
+  }, [])
+
+  const filteredHistory = history.filter((item) => {
     const matchesSearch =
       item.hash.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.holderName.toLowerCase().includes(searchQuery.toLowerCase())
@@ -106,12 +63,12 @@ export default function VerificationHistoryPage() {
   )
 
   const stats = {
-    total: mockHistory.length,
-    valid: mockHistory.filter((h) => h.result === "valid").length,
-    invalid: mockHistory.filter((h) => h.result === "invalid").length,
+    total: history.length,
+    valid: history.filter((h) => h.result === "valid").length,
+    invalid: history.filter((h) => h.result === "invalid").length,
     avgScore: Math.round(
-      mockHistory.filter((h) => h.result === "valid").reduce((sum, h) => sum + h.vScore, 0) /
-        mockHistory.filter((h) => h.result === "valid").length
+      history.filter((h) => h.result === "valid").reduce((sum, h) => sum + h.vScore, 0) /
+        Math.max(history.filter((h) => h.result === "valid").length, 1)
     ),
   }
 
@@ -215,7 +172,7 @@ export default function VerificationHistoryPage() {
                     </TableCell>
                     <TableCell className="font-medium">{item.holderName}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {new Date(item.date).toLocaleDateString("en-US", {
+                      {new Date(item.checkedAt).toLocaleDateString("en-US", {
                         year: "numeric",
                         month: "short",
                         day: "numeric",

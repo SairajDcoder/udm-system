@@ -7,27 +7,20 @@ type ServiceStatus = "healthy" | "degraded" | "down"
 
 interface Service {
   name: string
-  status: ServiceStatus
+  status: string
   latency: string
   uptime: string
 }
 
-const services: Service[] = [
-  { name: "Student Service", status: "healthy", latency: "12ms", uptime: "99.99%" },
-  { name: "Faculty Service", status: "healthy", latency: "15ms", uptime: "99.98%" },
-  { name: "Credential Service", status: "degraded", latency: "245ms", uptime: "99.85%" },
-  { name: "Auth Service", status: "healthy", latency: "8ms", uptime: "99.99%" },
-  { name: "IPFS Gateway", status: "healthy", latency: "89ms", uptime: "99.95%" },
-  { name: "Blockchain Node", status: "healthy", latency: "23ms", uptime: "99.97%" },
-  { name: "Kafka Broker", status: "healthy", latency: "5ms", uptime: "99.99%" },
-  { name: "API Gateway", status: "down", latency: "N/A", uptime: "98.50%" },
-  { name: "Cache Service", status: "healthy", latency: "2ms", uptime: "99.99%" },
-  { name: "Search Service", status: "healthy", latency: "45ms", uptime: "99.92%" },
-  { name: "Notification Svc", status: "healthy", latency: "18ms", uptime: "99.96%" },
-  { name: "Analytics Engine", status: "degraded", latency: "320ms", uptime: "99.70%" },
-]
+function normalizeStatus(status: string): ServiceStatus {
+  if (status === "healthy" || status === "degraded" || status === "down") {
+    return status
+  }
+  return "degraded"
+}
 
 function ServiceCard({ service }: { service: Service }) {
+  const normalizedStatus = normalizeStatus(service.status)
   const statusColors = {
     healthy: "bg-success",
     degraded: "bg-warning",
@@ -44,14 +37,14 @@ function ServiceCard({ service }: { service: Service }) {
     <div
       className={cn(
         "rounded-lg border p-3 transition-all hover:scale-[1.02]",
-        statusBgColors[service.status]
+        statusBgColors[normalizedStatus]
       )}
     >
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-foreground truncate">
           {service.name}
         </span>
-        <div className={cn("h-2.5 w-2.5 rounded-full animate-pulse", statusColors[service.status])} />
+        <div className={cn("h-2.5 w-2.5 rounded-full animate-pulse", statusColors[normalizedStatus])} />
       </div>
       <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground font-mono">
         <span>{service.latency}</span>
@@ -61,7 +54,11 @@ function ServiceCard({ service }: { service: Service }) {
   )
 }
 
-export function ServiceHealthGrid() {
+interface ServiceHealthGridProps {
+  services: Service[]
+}
+
+export function ServiceHealthGrid({ services }: ServiceHealthGridProps) {
   return (
     <Card className="bg-card border-border">
       <CardHeader className="pb-2">

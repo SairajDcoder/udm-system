@@ -8,7 +8,7 @@ if (!projectId) {
   throw new Error("NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is not set")
 }
 
-export const networks = [mainnet, sepolia]
+export const networks = [mainnet, sepolia] as [typeof mainnet, typeof sepolia]
 
 export const wagmiAdapter = new WagmiAdapter({
   storage: createStorage({

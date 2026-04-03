@@ -18,6 +18,7 @@ import {
   LogOut,
   ChevronDown,
 } from "lucide-react"
+import { useStudentWorkspace } from "@/components/student-portal/use-student-workspace"
 
 const navigation = [
   { name: "Dashboard", href: "/student-portal", icon: LayoutDashboard },
@@ -34,6 +35,17 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname()
+  const { data } = useStudentWorkspace()
+  const student = data?.student
+  const displayName = student?.fullName ?? "Loading..."
+  const displayId = student?.enrollmentId ?? student?.id ?? "Student ID"
+  const initials = displayName
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase()
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-[260px] bg-navy-900 flex flex-col">
@@ -80,11 +92,11 @@ export function Sidebar() {
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10 border-2 border-teal-500">
             <AvatarImage src="/avatars/student.jpg" alt="Student" />
-            <AvatarFallback className="bg-teal-500 text-white font-medium">AK</AvatarFallback>
+            <AvatarFallback className="bg-teal-500 text-white font-medium">{initials || "ST"}</AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">Alex Kumar</p>
-            <p className="text-xs text-gray-400 truncate">CS-2024-0892</p>
+            <p className="text-sm font-medium text-white truncate">{displayName}</p>
+            <p className="text-xs text-gray-400 truncate">{displayId}</p>
           </div>
           <button className="p-1.5 rounded-lg hover:bg-navy-700 text-gray-400 hover:text-white transition-colors">
             <ChevronDown className="h-4 w-4" />

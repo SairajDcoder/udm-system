@@ -16,13 +16,19 @@ export default function VerifierLanding() {
   const handleVerify = async () => {
     if (!hashId.trim()) return
     setIsLoading(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    // Route to result page based on hash (demo: valid for hashes starting with 'v', invalid otherwise)
-    if (hashId.toLowerCase().startsWith("v")) {
-      router.push(`/verify/result?hash=${encodeURIComponent(hashId)}&status=valid`)
-    } else {
-      router.push(`/verify/result?hash=${encodeURIComponent(hashId)}&status=invalid`)
+    try {
+      const response = await fetch(`/api/credential/verify/${encodeURIComponent(hashId)}?method=hash`, {
+        cache: "no-store",
+      })
+      const result = await response.json()
+      const status = response.ok ? result.status ?? "invalid" : "invalid"
+      router.push(
+        `/verifier-portal/verify/result?hash=${encodeURIComponent(hashId)}&status=${encodeURIComponent(status)}`
+      )
+    } catch {
+      router.push(`/verifier-portal/verify/result?hash=${encodeURIComponent(hashId)}&status=invalid`)
+    } finally {
+      setIsLoading(false)
     }
   }
 

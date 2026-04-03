@@ -35,35 +35,48 @@ function MetricCard({ icon: Icon, label, value, subValue, color }: MetricCardPro
   )
 }
 
-export function MetricsBar() {
+interface MetricsBarProps {
+  metrics: {
+    tps: number
+    peakTps: number
+    pendingTransactions: number
+    averageWaitSeconds: number
+    activeValidators: number
+    totalValidators: number
+    ipfsStorage: string
+    ipfsUtilization: string
+  }
+}
+
+export function MetricsBar({ metrics }: MetricsBarProps) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
       <MetricCard
         icon={Activity}
         label="Transactions/Sec"
-        value="1,247"
-        subValue="Peak: 2,891"
+        value={metrics.tps.toLocaleString()}
+        subValue={`Peak: ${metrics.peakTps.toLocaleString()}`}
         color="primary"
       />
       <MetricCard
         icon={Clock}
         label="Pending Txns"
-        value="89"
-        subValue="Avg wait: 1.2s"
+        value={metrics.pendingTransactions.toLocaleString()}
+        subValue={`Avg wait: ${metrics.averageWaitSeconds.toFixed(1)}s`}
         color="secondary"
       />
       <MetricCard
         icon={Server}
         label="Active Validators"
-        value="12/15"
-        subValue="3 syncing"
+        value={`${metrics.activeValidators}/${metrics.totalValidators}`}
+        subValue={`${Math.max(metrics.totalValidators - metrics.activeValidators, 0)} non-active`}
         color="success"
       />
       <MetricCard
         icon={HardDrive}
         label="IPFS Storage"
-        value="2.4 TB"
-        subValue="78% utilized"
+        value={metrics.ipfsStorage}
+        subValue={`${metrics.ipfsUtilization} utilized`}
         color="info"
       />
     </div>

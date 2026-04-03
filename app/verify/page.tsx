@@ -1,13 +1,12 @@
 "use client"
 
-import { useSearchParams, useRouter } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { Suspense } from "react"
 import { TwoFactorVerification } from "@/components/two-factor-verification"
 
 function VerifyContent() {
   const searchParams = useSearchParams()
-  const router = useRouter()
-  const email = searchParams.get("email") || "user@mitaoe.ac.in"
+  const email = (searchParams.get("email") || "user@mitaoe.ac.in").trim().toLowerCase()
   const role = searchParams.get("role") || "Student"
   
   const maskEmail = (email: string) => {
@@ -23,8 +22,9 @@ function VerifyContent() {
       onVerify={async (code) => {
         const res = await fetch("/api/auth/verify-2fa", {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code, email }),
+          body: JSON.stringify({ code, email, role }),
         })
         
         const data = await res.json()
@@ -33,20 +33,23 @@ function VerifyContent() {
           throw new Error(data.error || "Verification failed")
         }
         
-        // After successful verification, redirect to dashboard based on role
-        setTimeout(() => {
-          switch (role) {
-            case "Student": router.push("/student-portal"); break;
-            case "Faculty": router.push("/faculty-portal"); break;
-            case "Verifier": router.push("/verifier-portal"); break;
-            case "Admin": router.push("/super-admin-portal"); break;
-            default: router.push("/");
-          }
-        }, 500)
+        const fallbackRedirect =
+          role === "Student"
+            ? "/student-portal"
+            : role === "Faculty"
+              ? "/faculty-portal"
+              : role === "Verifier"
+                ? "/verifier-portal"
+                : role === "Admin"
+                  ? "/super-admin-portal"
+                  : "/"
+
+        window.location.replace(data.redirectTo || fallbackRedirect)
       }}
       onResend={async () => {
         const res = await fetch("/api/auth/send-2fa", {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email }),
         })
