@@ -21,6 +21,7 @@ type TranscriptRequest = {
   requestDate: string
   status: "pending" | "processing" | "ready" | "rejected"
   cid?: string
+  hashId?: string
 }
 
 function StatusBadge({ status }: { status: TranscriptRequest["status"] }) {
@@ -34,36 +35,41 @@ function StatusBadge({ status }: { status: TranscriptRequest["status"] }) {
   const icons = {
     ready: <CheckCircle2 className="mr-1 h-3 w-3" />,
     processing: <Clock className="mr-1 h-3 w-3" />,
-    pending: <AlertCircle className="mr-1 h-3 w-3" />,
+    pending: <Clock className="mr-1 h-3 w-3" />,
     rejected: <AlertCircle className="mr-1 h-3 w-3" />,
   }
 
-  return <Badge className={`${styles[status]} flex w-fit items-center rounded-full`}>{icons[status]}{status}</Badge>
+  return <Badge className={`${styles[status]} flex w-fit items-center rounded-full border-0 font-medium`}>{icons[status]}{status.charAt(0).toUpperCase() + status.slice(1)}</Badge>
 }
 
-function CIDLink({ cid }: { cid?: string }) {
+function HashDisplay({ hash }: { hash?: string }) {
   const [copied, setCopied] = useState(false)
 
-  if (!cid) return <span className="text-gray-400">-</span>
+  if (!hash) return <span className="text-gray-400 italic text-xs">Awaiting approval...</span>
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(cid)
+    navigator.clipboard.writeText(hash)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <code className="rounded bg-teal-50 px-2 py-1 font-mono text-xs text-teal-600">
-        {cid.slice(0, 10)}...{cid.slice(-6)}
-      </code>
-      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={handleCopy}>
-        {copied ? <Check className="h-3 w-3 text-teal-500" /> : <Copy className="h-3 w-3 text-gray-400" />}
-      </Button>
-      <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-        <a href={`https://ipfs.io/ipfs/${cid}`} target="_blank" rel="noopener noreferrer">
-          <ExternalLink className="h-3 w-3 text-gray-400" />
-        </a>
+    <div className="flex items-center gap-2 group">
+      <div className="flex flex-col">
+        <span className="text-[10px] text-gray-400 uppercase font-semibold tracking-wider">Verification Hash</span>
+        <code className="rounded bg-teal-50 px-2 py-0.5 font-mono text-[11px] text-teal-700 border border-teal-100">
+          {hash.slice(0, 12)}...{hash.slice(-8)}
+        </code>
+      </div>
+      <Button 
+        type="button" 
+        variant="ghost" 
+        size="icon" 
+        className="h-8 w-8 hover:bg-teal-50 hover:text-teal-600 transition-colors" 
+        onClick={handleCopy}
+        title="Copy Hash for Verifier"
+      >
+        {copied ? <Check className="h-3.5 w-3.5 text-teal-500" /> : <Copy className="h-3.5 w-3.5 text-gray-400" />}
       </Button>
     </div>
   )
@@ -82,7 +88,7 @@ export default function TranscriptRequestPage() {
   const loadRequests = async () => {
     const response = await fetch("/api/student/transcript/request")
     const payload = await response.json()
-    setRequests(payload.requests)
+    setRequests(payload.requests || [])
   }
 
   useEffect(() => {
@@ -214,35 +220,57 @@ export default function TranscriptRequestPage() {
           <CardDescription>Transcript requests generated through the student blockchain</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Request</TableHead>
-                <TableHead>Destination</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>IPFS CID</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {requests.map((request) => (
-                <TableRow key={request.id}>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium text-navy-900">{request.purpose}</p>
-                      <p className="text-xs text-gray-500">{request.id} • {request.format} • {request.copies} copies</p>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-gray-600">{request.destination}</TableCell>
-                  <TableCell><StatusBadge status={request.status} /></TableCell>
-                  <TableCell className="text-gray-600">
-                    {new Date(request.requestDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                  </TableCell>
-                  <TableCell><CIDLink cid={request.cid} /></TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-gray-200">
+                  <TableHead className="text-navy-700">Request Purpose</TableHead>
+                  <TableHead className="text-navy-700">Destination</TableHead>
+                  <TableHead className="text-navy-700">Status</TableHead>
+                  <TableHead className="text-navy-700">Date Requested</TableHead>
+                  <TableHead className="text-navy-700 text-right">Verification</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {requests.map((request) => (
+                  <TableRow key={request.id} className="border-gray-100 hover:bg-gray-50/50 transition-colors">
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-teal-600" />
+                          <p className="font-semibold text-navy-900">{request.purpose}</p>
+                        </div>
+                        <p className="text-[11px] text-gray-500 font-medium bg-gray-100 w-fit px-2 py-0.5 rounded uppercase tracking-tighter">
+                          {request.id} • {request.format} • {request.copies} {request.copies === 1 ? 'copy' : 'copies'}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-navy-800 font-medium">{request.destination}</TableCell>
+                    <TableCell><StatusBadge status={request.status} /></TableCell>
+                    <TableCell className="text-gray-600 text-sm whitespace-nowrap">
+                      {new Date(request.requestDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex flex-col items-end gap-2">
+                        <HashDisplay hash={request.hashId} />
+                        {request.cid && (
+                          <a 
+                            href={`https://ipfs.io/ipfs/${request.cid}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-[10px] font-bold text-teal-600 hover:text-teal-700 underline underline-offset-2 decoration-teal-600/30"
+                          >
+                            <ExternalLink className="h-2.5 w-2.5" />
+                            View on IPFS
+                          </a>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

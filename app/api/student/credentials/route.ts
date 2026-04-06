@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { listStudentCredentials } from "@/lib/unichain/service"
+import { getSessionClaimsFromRequest } from "@/lib/auth/session"
 
 export async function GET(request: NextRequest) {
-  const studentId = request.nextUrl.searchParams.get("studentId") || undefined
-  const credentials = await listStudentCredentials(studentId)
+  const claims = await getSessionClaimsFromRequest(request)
+  const studentId = claims?.sub
+
+  const credentials = await listStudentCredentials(studentId || undefined)
   return NextResponse.json({ credentials })
 }

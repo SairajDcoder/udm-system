@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client"
 import { useAppKit, useAppKitAccount } from "@reown/appkit/react"
 import { QRCodeSVG } from "qrcode.react"
 
-type Role = "student" | "faculty" | "admin"
+type Role = "student" | "faculty" | "admin" | "verifier"
 type Gender = "male" | "female" | "prefer-not-to-say"
 
 interface FormData {
@@ -597,7 +597,7 @@ function Step2({
           Role
         </label>
         <div className="flex rounded-lg border border-gray-200 p-1 bg-[#F8F9FB]">
-          {(["student", "faculty", "admin"] as Role[]).map((role) => (
+          {(["student", "faculty", "admin", "verifier"] as Role[]).map((role) => (
             <button
               key={role}
               onClick={() => updateFormData("role", role)}

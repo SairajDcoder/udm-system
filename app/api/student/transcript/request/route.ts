@@ -3,7 +3,8 @@ import { createTranscriptRequest, getTranscriptRequests } from "@/lib/unichain/s
 import { getSessionClaimsFromRequest } from "@/lib/auth/session"
 
 export async function GET(request: NextRequest) {
-  const studentId = request.nextUrl.searchParams.get("studentId") || undefined
+  const claims = await getSessionClaimsFromRequest(request)
+  const studentId = claims?.sub
   const requests = await getTranscriptRequests(studentId)
   return NextResponse.json({ requests })
 }

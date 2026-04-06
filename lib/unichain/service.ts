@@ -1039,7 +1039,7 @@ function createAuditLog(
 function getStudentSummary(db: UniChainDb, studentId: string) {
   const student = getUser(db, studentId)
   if (!student) {
-    throw new Error("Student not found")
+    throw new Error(`Student with ID ${studentId} not found`)
   }
 
   const grades = db.grades.filter((record) => record.studentId === studentId && record.status === "approved")
@@ -1080,6 +1080,12 @@ function getStudentSummary(db: UniChainDb, studentId: string) {
 }
 
 function hasAccess(db: UniChainDb, credential: Credential, verifierEmail?: string) {
+  // Transcripts are verifiable by anyone with the valid hash, as the hash acts as proof of issuance
+  const type = credential.type as string
+  if (type === "transcript" || type === "academic-transcript") {
+    return true
+  }
+
   if (!verifierEmail) {
     return true
   }
@@ -1101,8 +1107,10 @@ function verificationReasonCodes(report: {
   signatureValid: boolean
   timestampFresh: boolean
   accessGranted: boolean
+  statusActive: boolean
 }) {
   const reasons: string[] = []
+  if (!report.statusActive) reasons.push("ERR_CREDENTIAL_REVOKED")
   if (!report.accessGranted) reasons.push("ERR_ACCESS_DENIED")
   if (!report.hashMatch) reasons.push("ERR_HASH_MISMATCH")
   if (!report.signatureValid) reasons.push("ERR_SIGNATURE_INVALID")
@@ -1112,9 +1120,12 @@ function verificationReasonCodes(report: {
 
 export async function getDashboardData(role: UserRole, studentId?: string) {
   const db = await readDb()
-  const resolvedStudentId = studentId ?? DEMO_USER_IDS.student
+  const resolvedStudentId = studentId
+  if (role === "student" && !resolvedStudentId) {
+     throw new Error("Student ID is required for student dashboard")
+  }
 
-  if (role === "student") {
+  if (role === "student" && resolvedStudentId) {
     const summary = getStudentSummary(db, resolvedStudentId)
     const recentGrades = summary.grades
       .map((grade) => ({
@@ -1141,7 +1152,7 @@ export async function getDashboardData(role: UserRole, studentId?: string) {
   }
 
   if (role === "faculty") {
-    const facultyCourses = db.courses.filter((course) => course.facultyId === DEMO_USER_IDS.faculty)
+    const facultyCourses = db.courses.filter((course) => course.facultyId === resolvedStudentId)
     const gradeRecords = db.grades.filter((grade) => facultyCourses.some((course) => course.id === grade.courseId))
     const pendingTransfers = db.creditTransfers.filter((transfer) => transfer.status === "pending").length
 
@@ -1430,7 +1441,7 @@ export async function consumeOtpChallenge(email: string, code: string) {
 }
 
 export async function createTranscriptRequest(input: {
-  studentId?: string
+  studentId: string
   purpose: string
   destination: string
   address: string
@@ -1439,37 +1450,8 @@ export async function createTranscriptRequest(input: {
   notes?: string
 }) {
   return mutateDb((db) => {
-    const studentId = input.studentId ?? DEMO_USER_IDS.student
-    const summary = getStudentSummary(db, studentId)
+    const studentId = input.studentId
     const requestId = `TR-${new Date().getUTCFullYear()}-${String(db.transcriptRequests.length + 43).padStart(4, "0")}`
-    const transcriptPayload = JSON.stringify(
-      {
-        student: {
-          id: summary.student.id,
-          name: summary.student.fullName,
-          did: summary.student.did,
-          programme: summary.student.programme,
-          department: summary.student.department,
-        },
-        cgpa: summary.cgpa,
-        creditsEarned: summary.creditsEarned,
-        grades: summary.grades.map((grade) => {
-          const course = db.courses.find((item) => item.id === grade.courseId)
-          return {
-            code: course?.code,
-            title: course?.title,
-            term: grade.term,
-            credits: course?.credits,
-            grade: grade.grade,
-            total: grade.total,
-          }
-        }),
-      },
-      null,
-      2
-    )
-    const hashId = txHash(transcriptPayload)
-    const cid = cidFrom(transcriptPayload)
     const createdAt = nowIso()
     const request: TranscriptRequest = {
       id: requestId,
@@ -1481,115 +1463,33 @@ export async function createTranscriptRequest(input: {
       format: input.format,
       notes: input.notes ?? "",
       fee: 15,
-      status: "ready",
+      status: "pending",
       requestDate: createdAt,
-      readyAt: createdAt,
-      cid,
-      hashId,
-      qrData: `unichain://verify/${hashId}`,
     }
 
-    const document: StoredDocument = {
-      id: `DOC-${requestId}`,
-      ownerId: studentId,
-      type: "academic-transcript",
-      title: `${summary.student.fullName} Transcript`,
-      cid,
-      sha256: hashId,
-      sizeKb: Math.max(64, Math.round(transcriptPayload.length / 8)),
-      ...createEncryptedPayload(transcriptPayload, "(student_id=STU001) AND permission=granted", {
-        requestId,
-        type: "academic-transcript",
-      }),
-      plaintextPreview: `${summary.student.fullName} academic transcript`,
-      policy: "(student_id=STU001) AND permission=granted",
-      pinned: true,
-      uploadedAt: createdAt,
-      metadata: {
-        requestId,
-        destination: input.destination,
-      },
-    }
-
-    const signatories = [DEMO_USER_IDS.faculty, DEMO_USER_IDS.admin]
-    const credential: Credential = {
-      id: `CRED-${requestId}`,
-      studentId,
-      type: "transcript",
-      title: "Official Academic Transcript",
-      issuer: DEFAULT_INSTITUTION,
-      issueDate: createdAt,
-      expiryDate: null,
-      status: "active",
-      vScore: 98,
-      hashId,
-      cid,
-      sha256: hashId,
-      blockchain: "student",
-      contractName: "TranscriptManager.sol",
-      aggregateSignature: aggregateSignature(hashId, signatories),
-      signatoryIds: signatories,
-      merkleRoot: buildMerkleRoot(
-        db.credentials
-          .filter((item) => item.studentId === studentId)
-          .map((item) => item.hashId)
-          .concat(hashId)
-      ),
-      issuanceWindowEnd: plusDays(createdAt, DEFAULT_ISSUANCE_WINDOW_DAYS),
-      linkedRecordId: requestId,
-      policy: "(student_id=STU001) AND permission=granted",
-      description: "Official transcript generated through the TranscriptManager workflow.",
-    }
-
-    db.transcriptRequests.unshift(request)
-    db.documents.unshift(document)
-    db.credentials.unshift(credential)
-    db.notifications.unshift({
-      id: randomUUID(),
-      userId: studentId,
-      title: "Transcript ready",
-      message: `Transcript ${requestId} has been generated and pinned to IPFS.`,
-      type: "credential",
-      createdAt,
-      read: false,
-      link: "/student-portal/transcript-request",
-    })
-
-    const ledger = createLedgerEvent(db, {
-      blockchain: "student",
-      actorId: studentId,
-      contractName: "TranscriptManager.sol",
-      type: "transcript.requested",
-      payload: {
-        requestId,
-        hashId,
-        cid,
-      },
-    })
+    db.transcriptRequests.push(request)
+    
     createAuditLog(db, {
       actorId: studentId,
       actorRole: "student",
-      action: "transcript.requested",
+      action: "transcript.request",
       targetType: "transcript-request",
       targetId: requestId,
       blockchain: "student",
-      transactionHash: ledger.transaction.transactionHash,
-      blockNumber: ledger.block.blockNumber,
-      gasUsed: ledger.transaction.gasUsed,
+      transactionHash: txHash(JSON.stringify(request)),
+      blockNumber: db.blocks.length + 120,
+      gasUsed: 42000,
       details: {
         destination: input.destination,
-        format: input.format,
+        purpose: input.purpose,
       },
     })
 
-    return {
-      request,
-      credential,
-    }
+    return request
   })
 }
 
-export async function getTranscriptRequests(studentId: string = DEMO_USER_IDS.student) {
+export async function getTranscriptRequests(studentId?: string) {
   const db = await readDb()
   return db.transcriptRequests.filter((request) => request.studentId === studentId)
 }
@@ -1636,7 +1536,7 @@ export async function submitGrades(input: {
         existing.status = "approved"
         existing.submittedBy = facultyId
         existing.submittedAt = submittedAt
-        existing.approvedBy = DEMO_USER_IDS.admin
+        existing.approvedBy = facultyId
         existing.approvedAt = submittedAt
         return existing
       }
@@ -1653,7 +1553,7 @@ export async function submitGrades(input: {
         status: "approved",
         submittedBy: facultyId,
         submittedAt,
-        approvedBy: DEMO_USER_IDS.admin,
+        approvedBy: facultyId,
         approvedAt: submittedAt,
       }
       db.grades.push(record)
@@ -1745,9 +1645,9 @@ export async function getCourseRoster(courseId = "COURSE-CS401") {
   })
 }
 
-export async function issueDegree(input: { studentIds: string[]; issuedBy?: string }) {
+export async function issueDegree(input: { studentIds: string[]; issuedBy: string }) {
   return mutateDb((db) => {
-    const issuedBy = input.issuedBy ?? DEMO_USER_IDS.admin
+    const issuedBy = input.issuedBy
     const results = input.studentIds.map((studentId) => {
       const summary = getStudentSummary(db, studentId)
       const eligible = summary.creditsEarned >= 10 && summary.cgpa >= 3 && summary.student.graduationFeeCleared !== false
@@ -1770,7 +1670,7 @@ export async function issueDegree(input: { studentIds: string[]; issuedBy?: stri
       })
       const hashId = txHash(degreePayload)
       const cid = cidFrom(degreePayload)
-      const signatoryIds = [DEMO_USER_IDS.admin, DEMO_USER_IDS.faculty, issuedBy]
+      const signatoryIds = ["SYSTEM_ADMIN", issuedBy]
 
       const credential: Credential = {
         id: `DEG-${studentId}-${db.credentials.length + 1}`,
@@ -1895,18 +1795,20 @@ export async function getEligibleDegreeCandidates() {
     })
 }
 
-export async function listStudentCredentials(studentId: string = DEMO_USER_IDS.student) {
+export async function listStudentCredentials(studentId?: string) {
+  if (!studentId) return []
   const db = await readDb()
   return db.credentials.filter((credential) => credential.studentId === studentId)
 }
 
-export async function listStudentAccessGrants(studentId: string = DEMO_USER_IDS.student) {
+export async function listStudentAccessGrants(studentId?: string) {
+  if (!studentId) return []
   const db = await readDb()
   return db.accessGrants.filter((grant) => grant.studentId === studentId)
 }
 
 export async function grantAccess(input: {
-  studentId?: string
+  studentId: string
   verifierEmail: string
   verifierName: string
   verifierType: string
@@ -1914,7 +1816,7 @@ export async function grantAccess(input: {
   expiryDays: number
 }) {
   return mutateDb((db) => {
-    const studentId = input.studentId ?? DEMO_USER_IDS.student
+    const studentId = input.studentId
     const createdAt = nowIso()
     const grant: AccessGrant = {
       id: randomUUID(),
@@ -1963,7 +1865,7 @@ export async function grantAccess(input: {
   })
 }
 
-export async function revokeAccess(grantId: string, studentId: string = DEMO_USER_IDS.student) {
+export async function revokeAccess(grantId: string, studentId: string) {
   return mutateDb((db) => {
     const grant = db.accessGrants.find((entry) => entry.id === grantId && entry.studentId === studentId)
     if (!grant) {
@@ -2024,6 +1926,7 @@ export async function verifyCredentialByHash(input: {
       signatureValid,
       timestampFresh,
       accessGranted: credential ? accessGranted : false,
+      statusActive: credential ? credential.status === "active" : false,
     }
     const score =
       (checks.hashMatch ? 0.4 : 0) +
@@ -2051,7 +1954,7 @@ export async function verifyCredentialByHash(input: {
         (user) =>
           input.verifierEmail &&
           user.institutionalEmail.toLowerCase() === input.verifierEmail.toLowerCase()
-      )?.id ?? DEMO_USER_IDS.verifier
+      )?.id ?? "EXTERNAL_VERIFIER"
 
     const log: VerificationLog = {
       id: randomUUID(),
@@ -2127,23 +2030,25 @@ export async function verifyCredentialByHash(input: {
   })
 }
 
-export async function getVerificationHistory(verifierId: string = DEMO_USER_IDS.verifier) {
+export async function getVerificationHistory(verifierId?: string) {
+  if (!verifierId) return []
   const db = await readDb()
   return db.verificationLogs.filter((entry) => entry.verifierId === verifierId)
 }
 
-export async function getVerifierApiKeys(verifierId: string = DEMO_USER_IDS.verifier) {
+export async function getVerifierApiKeys(verifierId?: string) {
+  if (!verifierId) return []
   const db = await readDb()
   return db.verifierApiKeys.filter((entry) => entry.verifierId === verifierId)
 }
 
 export async function createVerifierApiKey(input: {
-  verifierId?: string
+  verifierId: string
   label: string
   scopes: string[]
 }) {
   return mutateDb((db) => {
-    const verifierId = input.verifierId ?? DEMO_USER_IDS.verifier
+    const verifierId = input.verifierId
     const rawKey = `vk_live_${sha256(`${verifierId}:${input.label}:${nowIso()}`)}`
     const apiKey: VerifierApiKey = {
       id: randomUUID(),
@@ -2186,7 +2091,7 @@ export async function createVerifierApiKey(input: {
   })
 }
 
-export async function revokeVerifierApiKey(apiKeyId: string, verifierId: string = DEMO_USER_IDS.verifier) {
+export async function revokeVerifierApiKey(apiKeyId: string, verifierId: string) {
   return mutateDb((db) => {
     const apiKey = db.verifierApiKeys.find((entry) => entry.id === apiKeyId && entry.verifierId === verifierId)
     if (!apiKey) {
@@ -2223,14 +2128,14 @@ export async function revokeVerifierApiKey(apiKeyId: string, verifierId: string 
 }
 
 export async function uploadDocument(input: {
-  ownerId?: string
+  ownerId: string
   title: string
   type: StoredDocument["type"]
   body: string
   policy: string
 }) {
   return mutateDb((db) => {
-    const ownerId = input.ownerId ?? DEMO_USER_IDS.faculty
+    const ownerId = input.ownerId
     validateDocumentInput(input.type, input.body)
     if (!input.policy.trim()) {
       throw new Error("Document policy is required")
@@ -2487,14 +2392,14 @@ export async function rekeyStoredDocument(input: {
 }
 
 export async function createCreditTransfer(input: {
-  studentId?: string
+  studentId: string
   destinationInstitution: string
   creditsRequested: number
   courseCodes: string[]
   reason: string
 }) {
   return mutateDb((db) => {
-    const studentId = input.studentId ?? DEMO_USER_IDS.student
+    const studentId = input.studentId
     const request: CreditTransferRequest = {
       id: `CT-${new Date().getUTCFullYear()}-${String(db.creditTransfers.length + 1).padStart(4, "0")}`,
       studentId,
@@ -2538,11 +2443,11 @@ export async function createCreditTransfer(input: {
 export async function reviewCreditTransfer(input: {
   transferId: string
   status: "approved" | "rejected"
-  reviewedBy?: string
+  reviewedBy: string
   decisionNote?: string
 }) {
   return mutateDb((db) => {
-    const reviewedBy = input.reviewedBy ?? DEMO_USER_IDS.faculty
+    const reviewedBy = input.reviewedBy
     const transfer = db.creditTransfers.find((entry) => entry.id === input.transferId)
     if (!transfer) {
       throw new Error("Credit transfer request not found")
@@ -2600,7 +2505,7 @@ export async function listAuditLogs() {
   return db.auditLogs
 }
 
-export async function exportStudentData(studentId: string = DEMO_USER_IDS.student) {
+export async function exportStudentData(studentId: string) {
   const db = await readDb()
   const summary = getStudentSummary(db, studentId)
 
@@ -2616,7 +2521,7 @@ export async function exportStudentData(studentId: string = DEMO_USER_IDS.studen
   }
 }
 
-export async function getStudentAcademics(studentId: string = DEMO_USER_IDS.student) {
+export async function getStudentAcademics(studentId: string) {
   const db = await readDb()
   const summary = getStudentSummary(db, studentId)
   const courseMap = new Map(db.courses.map((course) => [course.id, course]))
@@ -2699,7 +2604,7 @@ export async function getStudentAcademics(studentId: string = DEMO_USER_IDS.stud
   }
 }
 
-export async function listStudentNotifications(studentId: string = DEMO_USER_IDS.student) {
+export async function getStudentNotifications(studentId: string) {
   const db = await readDb()
   return db.notifications.filter((notification) => notification.userId === studentId)
 }
@@ -2720,7 +2625,7 @@ export async function markStudentNotificationRead(
   })
 }
 
-export async function markAllStudentNotificationsRead(studentId: string = DEMO_USER_IDS.student) {
+export async function markAllStudentNotificationsRead(studentId?: string) {
   return mutateDb((db) => {
     const notifications = db.notifications.filter((entry) => entry.userId === studentId)
     notifications.forEach((notification) => {
@@ -2746,12 +2651,12 @@ export async function deleteStudentNotification(
   })
 }
 
-export async function listStudentTransfers(studentId: string = DEMO_USER_IDS.student) {
+export async function listStudentTransfers(studentId?: string) {
   const db = await readDb()
   return db.creditTransfers.filter((transfer) => transfer.studentId === studentId)
 }
 
-export async function listFacultyCourses(facultyId: string = DEMO_USER_IDS.faculty) {
+export async function listFacultyCourses(facultyId?: string) {
   const db = await readDb()
   return db.courses
     .filter((course) => course.facultyId === facultyId)
@@ -2777,7 +2682,7 @@ export async function listFacultyCourses(facultyId: string = DEMO_USER_IDS.facul
     })
 }
 
-export async function listFacultyGrades(facultyId: string = DEMO_USER_IDS.faculty) {
+export async function listFacultyGrades(facultyId?: string) {
   const db = await readDb()
   const courses = db.courses.filter((course) => course.facultyId === facultyId)
   const courseIds = new Set(courses.map((course) => course.id))
@@ -2818,15 +2723,122 @@ export async function reviewTranscriptRequest(input: {
   note?: string
 }) {
   return mutateDb((db) => {
-    const reviewedBy = input.reviewedBy ?? DEMO_USER_IDS.faculty
+    const reviewedBy = input.reviewedBy
+    if (!reviewedBy) throw new Error("Reviewed by ID is required")
     const request = db.transcriptRequests.find((entry) => entry.id === input.requestId)
     if (!request) {
       throw new Error("Transcript request not found")
     }
 
     request.status = input.status
+    
+    // Revoke cryptographic credential if the request is rejected
+    if (input.status === "rejected") {
+      const existingCred = db.credentials.find((c) => c.linkedRecordId === request.id)
+      if (existingCred) {
+        existingCred.status = "revoked"
+      }
+    }
+
     if (input.status === "ready") {
-      request.readyAt = nowIso()
+      const summary = getStudentSummary(db, request.studentId)
+      const now = nowIso()
+      request.readyAt = now
+      
+      const transcriptPayload = JSON.stringify(
+        {
+          student: {
+            id: summary.student.id,
+            name: summary.student.fullName,
+            did: summary.student.did,
+            programme: summary.student.programme,
+            department: summary.student.department,
+          },
+          metadata: {
+            requestId: request.id,
+            issuedAt: now,
+            purpose: request.purpose,
+          },
+          cgpa: summary.cgpa,
+          creditsEarned: summary.creditsEarned,
+          grades: summary.grades.map((grade) => {
+            const course = db.courses.find((item) => item.id === grade.courseId)
+            return {
+              code: course?.code,
+              title: course?.title,
+              term: grade.term,
+              credits: course?.credits,
+              grade: grade.grade,
+              total: grade.total,
+            }
+          }),
+        },
+        null,
+        2
+      )
+      
+      const hashId = txHash(transcriptPayload)
+      const cid = cidFrom(transcriptPayload)
+
+      request.hashId = hashId
+      request.cid = cid
+      request.qrData = `unichain://verify/${hashId}`
+
+      // Create issued document
+      const document: StoredDocument = {
+        id: `DOC-${request.id}`,
+        ownerId: request.studentId,
+        type: "academic-transcript",
+        title: `${summary.student.fullName} Transcript`,
+        cid,
+        sha256: hashId,
+        sizeKb: Math.max(64, Math.round(transcriptPayload.length / 8)),
+        ...createEncryptedPayload(transcriptPayload, `(student_id=${request.studentId}) AND permission=granted`, {
+          requestId: request.id,
+          type: "academic-transcript",
+        }),
+        plaintextPreview: `${summary.student.fullName} academic transcript`,
+        policy: `(student_id=${request.studentId}) AND permission=granted`,
+        pinned: true,
+        uploadedAt: now,
+        metadata: {
+          requestId: request.id,
+          destination: request.destination,
+          purpose: request.purpose,
+        },
+      }
+      db.documents.push(document)
+
+      const signatories = [request.studentId, "SYSTEM_ADMIN"]
+      const credential: Credential = {
+        id: `CRED-${request.id}`,
+        studentId: request.studentId,
+        type: "transcript",
+        title: "Official Academic Transcript",
+        issuer: DEFAULT_INSTITUTION,
+        issueDate: now,
+        expiryDate: null,
+        status: "active",
+        vScore: 98,
+        hashId,
+        cid,
+        sha256: hashId,
+        blockchain: "student",
+        contractName: "TranscriptManager.sol",
+        aggregateSignature: aggregateSignature(hashId, signatories),
+        signatoryIds: signatories,
+        merkleRoot: buildMerkleRoot(
+          db.credentials
+            .filter((item) => item.studentId === request.studentId)
+            .map((item) => item.hashId)
+            .concat(hashId)
+        ),
+        issuanceWindowEnd: plusDays(now, DEFAULT_ISSUANCE_WINDOW_DAYS),
+        linkedRecordId: request.id,
+        policy: `(student_id=${request.studentId}) AND permission=granted`,
+        description: "Official transcript generated through the TranscriptManager workflow.",
+      }
+      db.credentials.push(credential)
     }
 
     const ledger = createLedgerEvent(db, {
@@ -2870,9 +2882,20 @@ export async function reviewTranscriptRequest(input: {
   })
 }
 
-export async function getFacultyWorkspace(facultyId: string = DEMO_USER_IDS.faculty) {
+export async function listFacultyWorkspace(facultyId: string) {
   const db = await readDb()
   const faculty = getUser(db, facultyId)
+  if (!faculty) {
+    return {
+      faculty: null,
+      courses: [],
+      students: [],
+      grades: [],
+      pendingTranscriptRequests: [],
+      degreeCandidates: [],
+      transfers: [],
+    }
+  }
   const courses = await listFacultyCourses(facultyId)
   const courseIds = new Set(courses.map((course) => course.id))
   const students = db.users.filter(
@@ -3017,7 +3040,7 @@ export async function createResearchDocument(input: {
   })
 }
 
-export async function listFacultyResearchDocuments(facultyId: string = DEMO_USER_IDS.faculty) {
+export async function listFacultyResearchDocuments(facultyId: string) {
   const db = await readDb()
   return db.researchDocuments
     .filter((document) => document.facultyId === facultyId)
@@ -3101,7 +3124,8 @@ export async function slashValidatorNode(input: {
 
     validator.stake = Math.max(0, validator.stake - input.amount)
     validator.status = validator.stake === 0 ? "degraded" : validator.status
-    const executedBy = input.executedBy ?? DEMO_USER_IDS.admin
+    const executedBy = input.executedBy
+    if (!executedBy) throw new Error("Executed by ID is required")
 
     const ledger = createLedgerEvent(db, {
       blockchain: "institutional",
@@ -3134,8 +3158,16 @@ export async function slashValidatorNode(input: {
   })
 }
 
-export async function getVerifierWorkspace(verifierId: string = DEMO_USER_IDS.verifier) {
+export async function getVerifierWorkspace(verifierId?: string) {
   const db = await readDb()
+  if (!verifierId) {
+    return {
+      verifier: null,
+      stats: { total: 0, valid: 0, invalid: 0, avgScore: 0 },
+      history: [],
+      apiKeys: [],
+    }
+  }
   const history = db.verificationLogs.filter((entry) => entry.verifierId === verifierId)
   const apiKeys = db.verifierApiKeys.filter((entry) => entry.verifierId === verifierId)
   const validHistory = history.filter((entry) => entry.result === "valid")
@@ -3190,7 +3222,8 @@ export async function upgradeSmartContract(input: {
 
     contract.version = input.newVersion ?? bumpVersion(contract.version)
     contract.status = "healthy"
-    const upgradedBy = input.upgradedBy ?? DEMO_USER_IDS.admin
+    const upgradedBy = input.upgradedBy
+    if (!upgradedBy) throw new Error("Upgraded by ID is required")
 
     const ledger = createLedgerEvent(db, {
       blockchain: contract.blockchain,
@@ -3223,8 +3256,8 @@ export async function upgradeSmartContract(input: {
   })
 }
 
-export async function getStudentWorkspace(studentId?: string) {
+export async function getStudentWorkspace(studentId: string) {
   const db = await readDb()
-  const summary = getStudentSummary(db, studentId ?? DEMO_USER_IDS.student)
+  const summary = getStudentSummary(db, studentId)
   return summary
 }

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyCredentialByHash } from "@/lib/unichain/service"
+import { getSessionClaimsFromRequest } from "@/lib/auth/session"
 
 export async function GET(request: NextRequest, context: { params: Promise<{ hash: string }> }) {
   try {
     const { hash } = await context.params
-    const verifierEmail = request.nextUrl.searchParams.get("verifierEmail") || undefined
+    const claims = await getSessionClaimsFromRequest(request)
+    const verifierEmail = claims?.sub || request.nextUrl.searchParams.get("verifierEmail") || undefined
     const method = (request.nextUrl.searchParams.get("method") || "hash") as "hash" | "qr" | "api"
     const report = await verifyCredentialByHash({
       hash,
