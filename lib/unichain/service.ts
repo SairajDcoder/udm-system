@@ -9,6 +9,8 @@ import { base32 } from "multiformats/bases/base32"
 import { CID } from "multiformats/cid"
 import * as digest from "multiformats/hashes/digest"
 import { existsSync, readFileSync } from "fs"
+import { getSupabaseAdmin } from "@/lib/supabase/admin"
+import { pinToIPFS, fetchFromIPFS } from "@/lib/ipfs/pinata"
 import { decryptWithPolicy, encryptWithPolicy, policyMatches, rekeyWithPolicy } from "@/lib/crypto/abe"
 import {
   DEMO_USER_IDS,
@@ -40,6 +42,8 @@ import {
 
 const DATA_DIR = path.join(process.cwd(), ".data")
 const DB_PATH = path.join(DATA_DIR, "unichain-db.json")
+const SUPABASE_STATE_TABLE = "unichain_state"
+const SUPABASE_STATE_ID = "main"
 const DEFAULT_INSTITUTION = "MIT Academy of Engineering"
 const NETWORK_LABEL = "Permissioned Ethereum Consortium"
 const DEFAULT_ISSUANCE_WINDOW_DAYS = 3650
@@ -801,20 +805,37 @@ function buildSeedDb(): UniChainDb {
 }
 
 async function ensureDb() {
-  await fs.mkdir(DATA_DIR, { recursive: true })
+  // Check if Supabase has state; if not, seed it
+  const supabase = getSupabaseAdmin()
+  const { data } = await supabase
+    .from(SUPABASE_STATE_TABLE)
+    .select("state")
+    .eq("id", SUPABASE_STATE_ID)
+    .single()
 
-  try {
-    await fs.access(DB_PATH)
-  } catch {
+  if (!data || !data.state || Object.keys(data.state).length === 0) {
     const seed = buildSeedDb()
-    await fs.writeFile(DB_PATH, JSON.stringify(seed, null, 2), "utf8")
+    await supabase
+      .from(SUPABASE_STATE_TABLE)
+      .upsert({ id: SUPABASE_STATE_ID, state: seed, updatedAt: new Date().toISOString() })
+    console.log("[UniChain] Seeded cloud database with initial state")
   }
 }
 
-async function readDb() {
+async function readDb(): Promise<UniChainDb> {
   await ensureDb()
-  const data = await fs.readFile(DB_PATH, "utf8")
-  const parsed = JSON.parse(data) as Partial<UniChainDb>
+  const supabase = getSupabaseAdmin()
+  const { data, error } = await supabase
+    .from(SUPABASE_STATE_TABLE)
+    .select("state")
+    .eq("id", SUPABASE_STATE_ID)
+    .single()
+
+  if (error || !data) {
+    throw new Error(`Failed to read cloud database: ${error?.message ?? "No data"}`)
+  }
+
+  const parsed = data.state as Partial<UniChainDb>
   return {
     ...parsed,
     otpChallenges: parsed.otpChallenges ?? [],
@@ -823,7 +844,15 @@ async function readDb() {
 
 async function writeDb(db: UniChainDb) {
   db.lastUpdatedAt = nowIso()
-  await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2), "utf8")
+  const supabase = getSupabaseAdmin()
+  const { error } = await supabase
+    .from(SUPABASE_STATE_TABLE)
+    .update({ state: db, updatedAt: new Date().toISOString() })
+    .eq("id", SUPABASE_STATE_ID)
+
+  if (error) {
+    throw new Error(`Failed to write cloud database: ${error.message}`)
+  }
 }
 
 async function mutateDb<T>(fn: (db: UniChainDb) => T | Promise<T>) {
@@ -867,24 +896,33 @@ function selectValidator(db: UniChainDb, blockchain: BlockchainKey, seed: string
   return validators[0]
 }
 
-const LOCAL_RPC_URL = "http://127.0.0.1:8545";
-const SYSTEM_DEPLOYER_PKEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+// Blockchain RPC Configuration — defaults to local Hardhat, uses Alchemy Sepolia when configured
+const BLOCKCHAIN_RPC_URL = process.env.ALCHEMY_SEPOLIA_URL || "http://127.0.0.1:8545";
+const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY || "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+const AUDIT_LOGGER_ADDRESS = process.env.AUDIT_LOGGER_CONTRACT_ADDRESS || "";
 let auditLoggerContract: Contract | null = null;
 
 function getAuditLoggerContract() {
   if (!auditLoggerContract) {
     try {
-      const provider = new JsonRpcProvider(LOCAL_RPC_URL);
-      const wallet = new Wallet(SYSTEM_DEPLOYER_PKEY, provider);
-      const addrPath = path.join(process.cwd(), ".data", "contract-addresses.json");
-      if (!existsSync(addrPath)) return null;
-      
-      const addrs = JSON.parse(readFileSync(addrPath, "utf8"));
+      const provider = new JsonRpcProvider(BLOCKCHAIN_RPC_URL);
+      const wallet = new Wallet(DEPLOYER_PRIVATE_KEY, provider);
+
+      // Try env var address first, then fall back to local file
+      let contractAddress = AUDIT_LOGGER_ADDRESS;
+      if (!contractAddress) {
+        const addrPath = path.join(process.cwd(), ".data", "contract-addresses.json");
+        if (!existsSync(addrPath)) return null;
+        const addrs = JSON.parse(readFileSync(addrPath, "utf8"));
+        contractAddress = addrs.AuditLogger;
+      }
+      if (!contractAddress) return null;
+
       const abiPath = path.join(process.cwd(), "blockchain", "artifacts", "contracts", "AuditLogger.sol", "AuditLogger.json");
       if (!existsSync(abiPath)) return null;
       
       const { abi } = JSON.parse(readFileSync(abiPath, "utf8"));
-      auditLoggerContract = new Contract(addrs.AuditLogger, abi, wallet);
+      auditLoggerContract = new Contract(contractAddress, abi, wallet);
     } catch(e) {
       console.warn("Failed to initialize AuditLogger RPC connection");
       return null;
@@ -2204,11 +2242,12 @@ export async function uploadDocument(input: {
          type: input.type,
     });
     
-    // Asynchronously write to off-chain IPFS storage
-    const blobPath = path.join(process.cwd(), ".data", "ipfs-blobs", `${cid}.bin`);
-    fs.mkdir(path.dirname(blobPath), { recursive: true }).then(() => 
-      fs.writeFile(blobPath, payloadData.encryptedPayload, "utf8")
-    ).catch(e => console.error("IPFS OFF-CHAIN WRITE ERROR:", e));
+    // Pin to IPFS via Pinata cloud
+    pinToIPFS(payloadData.encryptedPayload, {
+      name: `unichain-${input.type}-${cid}`,
+      ownerId: ownerId,
+      docType: input.type,
+    }).catch(e => console.error("IPFS PINATA PIN ERROR:", e));
 
     const document: StoredDocument = {
       id: randomUUID(),
@@ -2271,8 +2310,10 @@ export async function listStoredDocuments(filters: {
   await Promise.all(docs.map(async (doc) => {
     if (doc.encryptedPayload === "OFF_CHAIN_IPFS_DATABLOCK") {
       try {
-        const blobPath = path.join(process.cwd(), ".data", "ipfs-blobs", `${doc.cid}.bin`)
-        doc.encryptedPayload = await fs.readFile(blobPath, "utf8")
+        const ipfsData = await fetchFromIPFS(doc.cid)
+        if (ipfsData) {
+          doc.encryptedPayload = ipfsData
+        }
       } catch (e) {
         console.error(`Failed to hydrate IPFS payload for document ${doc.id}:`, e)
       }
@@ -2287,8 +2328,10 @@ export async function getStoredDocument(documentId: string) {
   const doc = db.documents.find((entry) => entry.id === documentId) ?? null
   if (doc && doc.encryptedPayload === "OFF_CHAIN_IPFS_DATABLOCK") {
       try {
-        const blobPath = path.join(process.cwd(), ".data", "ipfs-blobs", `${doc.cid}.bin`)
-        doc.encryptedPayload = await fs.readFile(blobPath, "utf8")
+        const ipfsData = await fetchFromIPFS(doc.cid)
+        if (ipfsData) {
+          doc.encryptedPayload = ipfsData
+        }
       } catch (e) {
         console.error(`Failed to hydrate IPFS payload for document ${doc.id}:`, e)
       }
@@ -2303,8 +2346,10 @@ export async function getStoredDocumentByReference(reference: string) {
     ) ?? null
   if (doc && doc.encryptedPayload === "OFF_CHAIN_IPFS_DATABLOCK") {
       try {
-        const blobPath = path.join(process.cwd(), ".data", "ipfs-blobs", `${doc.cid}.bin`)
-        doc.encryptedPayload = await fs.readFile(blobPath, "utf8")
+        const ipfsData = await fetchFromIPFS(doc.cid)
+        if (ipfsData) {
+          doc.encryptedPayload = ipfsData
+        }
       } catch (e) {
         console.error(`Failed to hydrate IPFS payload for document ${doc.id}:`, e)
       }
