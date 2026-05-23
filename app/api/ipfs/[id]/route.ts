@@ -36,3 +36,15 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     return NextResponse.json({ error: message }, { status })
   }
 }
+
+export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await context.params
+    const document = await import("@/lib/unichain/service").then((mod) => mod.deleteStoredDocument(id))
+    return NextResponse.json({ success: true, document })
+  } catch (error) {
+    console.error("IPFS delete error:", error)
+    const message = error instanceof Error ? error.message : "Failed to delete document."
+    return NextResponse.json({ error: message }, { status: 400 })
+  }
+}

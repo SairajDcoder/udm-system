@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { Bell, Search, User, LogOut, Settings } from 'lucide-react'
+import { Bell, Search, User, LogOut, Settings, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -14,9 +14,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
+import { useFacultyWorkspace } from './use-faculty-workspace'
 
 export function PortalTopbar() {
   const router = useRouter()
+  const { data, loading } = useFacultyWorkspace()
+  
+  const faculty = data?.faculty
+  const notifCount = data?.pendingTranscriptRequests?.length || 0
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -42,9 +47,11 @@ export function PortalTopbar() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative text-navy-600 hover:bg-navy-50">
               <Bell className="h-5 w-5" />
-              <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs bg-gold text-navy-900 border-0">
-                3
-              </Badge>
+              {notifCount > 0 && (
+                <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs bg-gold text-navy-900 border-0 flex items-center justify-center">
+                  {notifCount}
+                </Badge>
+              )}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-80">
@@ -69,14 +76,22 @@ export function PortalTopbar() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="flex items-center gap-3 px-2 hover:bg-navy-50">
-              <Avatar className="h-8 w-8">
-                <AvatarImage src="/placeholder-avatar.jpg" alt="Dr. Sarah Johnson" />
-                <AvatarFallback className="bg-navy-600 text-white">SJ</AvatarFallback>
-              </Avatar>
-              <div className="hidden text-left md:block">
-                <p className="text-sm font-medium text-navy-700">Dr. Sarah Johnson</p>
-                <p className="text-xs text-navy-400">Department Head</p>
-              </div>
+              {loading ? (
+                <Loader2 className="h-5 w-5 animate-spin text-navy-400" />
+              ) : (
+                <>
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src="/placeholder-avatar.jpg" alt={faculty?.full_name || "Faculty Member"} />
+                    <AvatarFallback className="bg-navy-600 text-white">
+                      {faculty?.full_name?.substring(0, 2).toUpperCase() || "FA"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="hidden text-left md:block">
+                    <p className="text-sm font-medium text-navy-700">{faculty?.full_name || "Faculty Member"}</p>
+                    <p className="text-xs text-navy-400">{faculty?.department || "Department"}</p>
+                  </div>
+                </>
+              )}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">

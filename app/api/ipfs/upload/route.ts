@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
 import { uploadDocument } from "@/lib/unichain/service"
+import { getSessionClaimsFromRequest } from "@/lib/auth/session"
 
 export async function POST(request: NextRequest) {
   try {
+    const claims = await getSessionClaimsFromRequest(request)
+    const ownerId = claims?.sub
+
+    if (!ownerId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const body = await request.json()
     const document = await uploadDocument({
-      ownerId: body.ownerId,
+      ownerId,
       title: body.title,
       type: body.type,
       body: body.body,

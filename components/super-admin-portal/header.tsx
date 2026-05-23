@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { Bell, Search, User, LogOut } from "lucide-react"
+import { Bell, Search, User, LogOut, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
+import { useUserSession } from "@/hooks/use-user-session"
 
 interface AdminHeaderProps {
   title: string
@@ -21,6 +22,7 @@ interface AdminHeaderProps {
 
 export function AdminHeader({ title, code }: AdminHeaderProps) {
   const router = useRouter()
+  const { session, loading } = useUserSession()
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" })
@@ -53,7 +55,7 @@ export function AdminHeader({ title, code }: AdminHeaderProps) {
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
               <Badge className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-[10px] bg-primary">
-                3
+                0
               </Badge>
             </Button>
           </DropdownMenuTrigger>
@@ -95,7 +97,7 @@ export function AdminHeader({ title, code }: AdminHeaderProps) {
               <div className="flex flex-col">
                 <span>Super Admin</span>
                 <span className="text-xs font-normal text-muted-foreground">
-                  admin@university.edu
+                  {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : (session?.email || "admin@university.edu")}
                 </span>
               </div>
             </DropdownMenuLabel>

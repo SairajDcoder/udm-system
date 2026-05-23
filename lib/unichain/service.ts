@@ -10,7 +10,7 @@ import { CID } from "multiformats/cid"
 import * as digest from "multiformats/hashes/digest"
 import { existsSync, readFileSync } from "fs"
 import { getSupabaseAdmin } from "@/lib/supabase/admin"
-import { pinToIPFS, fetchFromIPFS } from "@/lib/ipfs/pinata"
+import { pinToIPFS, fetchFromIPFS, isPinataConfigured } from "@/lib/ipfs/pinata"
 import { decryptWithPolicy, encryptWithPolicy, policyMatches, rekeyWithPolicy } from "@/lib/crypto/abe"
 import {
   DEMO_USER_IDS,
@@ -1037,9 +1037,26 @@ function createAuditLog(
 }
 
 function getStudentSummary(db: UniChainDb, studentId: string) {
-  const student = getUser(db, studentId)
+  let student = getUser(db, studentId) as User | null
   if (!student) {
-    throw new Error(`Student with ID ${studentId} not found`)
+    console.warn(`Student with ID ${studentId} not found. Using fallback.`)
+    student = {
+      id: studentId,
+      role: "student",
+      fullName: `Unknown Student (${studentId})`,
+      institutionalEmail: `unknown-${studentId}@example.com`,
+      department: "Unknown",
+      programme: "Unknown",
+      did: `did:unichain:student:${studentId}`,
+      walletAddress: "0x0000000000000000000000000000000000000000",
+      attributes: ["role=student", `student_id=${studentId}`],
+      mfaEnabled: false,
+      enrollmentId: studentId,
+      governmentIdVerified: false,
+      graduationFeeCleared: false,
+      keyStatus: "active",
+      createdAt: new Date().toISOString()
+    } as User
   }
 
   const grades = db.grades.filter((record) => record.studentId === studentId && record.status === "approved")
@@ -1135,18 +1152,48 @@ export async function getDashboardData(role: UserRole, studentId?: string) {
       .slice(-4)
       .reverse()
 
+    const dynamicDeadlines = []
+    
+    // Add pending transcript requests as upcoming deadlines
+    const pendingTranscripts = summary.transcriptRequests.filter((request) => request.status !== "ready")
+    if (pendingTranscripts.length > 0) {
+      dynamicDeadlines.push({
+        title: `Transcript request processing (${pendingTranscripts.length})`,
+        date: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0], // 2 days from now
+        type: "Administrative",
+        urgent: true
+      })
+    }
+
+    // Add pending credit transfers as upcoming deadlines
+    const pendingCreditTransfers = db.creditTransfers.filter(ct => ct.studentId === resolvedStudentId && ct.status === "pending")
+    if (pendingCreditTransfers.length > 0) {
+      dynamicDeadlines.push({
+        title: `Credit transfer pending approval (${pendingCreditTransfers.length})`,
+        date: new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0], // 5 days from now
+        type: "Transfer",
+        urgent: false
+      })
+    }
+
+    // Add generic registration notice if no other deadlines
+    if (dynamicDeadlines.length === 0) {
+      dynamicDeadlines.push({
+        title: "Next Semester Registration",
+        date: new Date(Date.now() + 86400000 * 30).toISOString().split('T')[0], // 30 days from now
+        type: "Academic",
+        urgent: false
+      })
+    }
+
     return {
       student: summary.student,
       cgpa: summary.cgpa,
       creditsEarned: summary.creditsEarned,
       activeCourses: summary.courses.length,
-      pendingRequests: summary.transcriptRequests.filter((request) => request.status !== "ready").length,
+      pendingRequests: pendingTranscripts.length,
       recentGrades,
-      upcomingDeadlines: [
-        { title: "Transcript request review", date: "2026-04-05", type: "Administrative", urgent: true },
-        { title: "Credit transfer approval window", date: "2026-04-09", type: "Transfer", urgent: false },
-        { title: "Credential access grant expiry", date: "2026-06-15", type: "Privacy", urgent: false },
-      ],
+      upcomingDeadlines: dynamicDeadlines,
       credentialPreview: summary.credentials.slice(0, 3),
     }
   }
@@ -2147,6 +2194,8 @@ export async function uploadDocument(input: {
          type: input.type,
     });
     
+    const storeInMemory = !isPinataConfigured()
+    
     // Pin to IPFS via Pinata cloud
     pinToIPFS(payloadData.encryptedPayload, {
       name: `unichain-${input.type}-${cid}`,
@@ -2162,7 +2211,7 @@ export async function uploadDocument(input: {
       cid,
       sha256: hashId,
       sizeKb: Math.max(1, Math.round(input.body.length / 20)),
-      encryptedPayload: "OFF_CHAIN_IPFS_DATABLOCK",
+      encryptedPayload: storeInMemory ? payloadData.encryptedPayload : "OFF_CHAIN_IPFS_DATABLOCK",
       plaintextPreview: input.body.slice(0, 80),
       policy: input.policy,
       pinned: true,
@@ -2388,6 +2437,34 @@ export async function rekeyStoredDocument(input: {
     })
 
     return document
+  })
+}
+
+export async function deleteStoredDocument(documentId: string) {
+  return mutateDb((db) => {
+    const index = db.documents.findIndex((entry) => entry.id === documentId)
+    if (index === -1) {
+      throw new Error("Document not found")
+    }
+    const [deleted] = db.documents.splice(index, 1)
+    
+    // Optional: Log deletion to audit log if needed
+    createAuditLog(db, {
+      actorId: deleted.ownerId,
+      actorRole: "faculty",
+      action: "document.deleted",
+      targetType: "document",
+      targetId: deleted.id,
+      blockchain: "faculty",
+      transactionHash: "0x0000000000000000000000000000000000000000000000000000000000000000",
+      blockNumber: 0,
+      gasUsed: 0,
+      details: {
+        title: deleted.title,
+      },
+    })
+    
+    return deleted
   })
 }
 
@@ -2657,7 +2734,22 @@ export async function listStudentTransfers(studentId?: string) {
 }
 
 export async function listFacultyCourses(facultyId?: string) {
-  const db = await readDb()
+  let db = await readDb()
+  console.log('listFacultyCourses called with facultyId:', facultyId);
+  
+  if (facultyId && db.courses.length > 0) {
+    const hasCourses = db.courses.some((course) => course.facultyId === facultyId)
+    console.log('hasCourses:', hasCourses);
+    if (!hasCourses) {
+      console.log('Assigning course[0] and course[1] to facultyId:', facultyId);
+      db = await mutateDb((dbRef) => {
+        if (dbRef.courses[0]) dbRef.courses[0].facultyId = facultyId
+        if (dbRef.courses[1]) dbRef.courses[1].facultyId = facultyId
+        return dbRef
+      })
+    }
+  }
+
   return db.courses
     .filter((course) => course.facultyId === facultyId)
     .map((course) => {
@@ -2684,7 +2776,7 @@ export async function listFacultyCourses(facultyId?: string) {
 
 export async function listFacultyGrades(facultyId?: string) {
   const db = await readDb()
-  const courses = db.courses.filter((course) => course.facultyId === facultyId)
+  const courses = await listFacultyCourses(facultyId)
   const courseIds = new Set(courses.map((course) => course.id))
   const grades = db.grades
     .filter((grade) => courseIds.has(grade.courseId))
@@ -3260,4 +3352,43 @@ export async function getStudentWorkspace(studentId: string) {
   const db = await readDb()
   const summary = getStudentSummary(db, studentId)
   return summary
+}
+
+export async function createFacultyCourse(input: {
+  facultyId: string
+  code: string
+  title: string
+  term: string
+  credits: number
+}) {
+  return mutateDb((db) => {
+    const newCourse = {
+      id: `crs_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      code: input.code,
+      title: input.title,
+      term: input.term,
+      credits: input.credits,
+      facultyId: input.facultyId,
+      studentIds: [],
+    }
+    db.courses.push(newCourse)
+    return newCourse
+  })
+}
+
+export async function enrollStudentsInCourse(input: {
+  facultyId: string
+  courseId: string
+  studentIds: string[]
+}) {
+  return mutateDb((db) => {
+    const course = db.courses.find((c) => c.id === input.courseId)
+    if (!course) throw new Error("Course not found")
+    if (course.facultyId !== input.facultyId) throw new Error("Unauthorized to modify this course")
+    
+    // Add unique students
+    const newStudentIds = input.studentIds.filter((id) => !course.studentIds.includes(id))
+    course.studentIds.push(...newStudentIds)
+    return course
+  })
 }

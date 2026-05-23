@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getSessionClaimsFromRequest } from "@/lib/auth/session"
 import { listValidatorNodes } from "@/lib/unichain/service"
 
 export async function GET(request: NextRequest) {

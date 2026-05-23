@@ -125,12 +125,23 @@ export default function DashboardPage() {
     },
   ]
 
-  const actionQueue = [
-    { id: 'grades', title: 'Submit course grade sheet', deadline: 'Grade registry workflow', href: '/faculty-portal/grades', priority: 'high' },
-    { id: 'transcripts', title: 'Review transcript issuance requests', deadline: 'Transcript manager queue', href: '/faculty-portal/transcripts', priority: 'urgent' },
-    { id: 'degrees', title: 'Issue eligible degree credentials', deadline: 'Credential issuance batch', href: '/faculty-portal/degrees', priority: 'medium' },
-    { id: 'transfers', title: 'Review credit transfer mappings', deadline: 'Cross-institution approvals', href: '/faculty-portal/transfers', priority: 'medium' },
-  ]
+  const actionQueue = []
+  if (data?.stats?.pendingGrades) {
+    actionQueue.push({ id: 'grades', title: `Submit ${data.stats.pendingGrades} pending course grades`, deadline: 'Grade registry workflow', href: '/faculty-portal/grades', priority: 'high' })
+  }
+  if (data?.stats?.transcriptRequests) {
+    actionQueue.push({ id: 'transcripts', title: `Review ${data.stats.transcriptRequests} transcript issuance requests`, deadline: 'Transcript manager queue', href: '/faculty-portal/transcripts', priority: 'urgent' })
+  }
+  if (data?.stats?.degreesToIssue) {
+    actionQueue.push({ id: 'degrees', title: `Issue ${data.stats.degreesToIssue} eligible degree credentials`, deadline: 'Credential issuance batch', href: '/faculty-portal/degrees', priority: 'medium' })
+  }
+  if (data?.stats?.pendingTransfers) {
+    actionQueue.push({ id: 'transfers', title: `Review ${data.stats.pendingTransfers} credit transfer applications`, deadline: 'Cross-institution approvals', href: '/faculty-portal/transfers', priority: 'medium' })
+  }
+  
+  if (actionQueue.length === 0) {
+    actionQueue.push({ id: 'all-clear', title: 'All tasks completed', deadline: 'No pending actions', href: '#', priority: 'low' })
+  }
 
   const systemHealth = {
     blockchain: 99.9,

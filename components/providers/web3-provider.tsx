@@ -15,7 +15,7 @@ createAppKit({
   metadata: {
     name: "UniChain",
     description: "Secure Academic Credentials on Blockchain",
-    url: "https://unichain.mitaoe.ac.in",
+    url: typeof window !== "undefined" ? window.location.origin : "https://unichain.mitaoe.ac.in",
     icons: ["/icon.svg"],
   },
   features: {

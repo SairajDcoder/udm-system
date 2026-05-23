@@ -80,7 +80,17 @@
   --font-mono: var(--font-jetbrains-mono), 'JetBrains Mono', monospace;
   
   /* UniChain Design Tokens */
+  --color-navy-50: #f0f4f8;
+  --color-navy-100: #d9e2ec;
+  --color-navy-200: #bcccdc;
+  --color-navy-300: #9fb3c8;
+  --color-navy-400: #829ab1;
+  --color-navy-500: #627d98;
+  --color-navy-600: #486581;
+  --color-navy-700: #334e68;
+  --color-navy-800: #243b53;
   --color-navy-900: #0A1628;
+  
   --color-teal-500: #0E8A7E;
   --color-teal-400: #14B5A5;
   --color-gray-50: #F8F9FB;

@@ -92,6 +92,23 @@ export function RegistrationForm() {
   }, [])
 
   const handleNext = () => {
+    if (currentStep === 1) {
+      if (!formData.fullName || !formData.dateOfBirth || !formData.gender || !formData.phoneNumber || !formData.personalEmail) {
+        setSubmitError("Please fill all required fields in Step 1.")
+        return
+      }
+    }
+    if (currentStep === 2) {
+      if (!formData.institutionalEmail || !formData.enrollmentId || !formData.department || (formData.role === "student" && !formData.programme) || !formData.joinYear) {
+        setSubmitError("Please fill all required fields in Step 2.")
+        return
+      }
+      if (!formData.institutionalEmail.endsWith("@mitaoe.ac.in")) {
+        setSubmitError("Institutional email must end with @mitaoe.ac.in")
+        return
+      }
+    }
+    setSubmitError("")
     setSlideDirection("right")
     setCurrentStep(prev => Math.min(prev + 1, steps.length))
   }
@@ -143,14 +160,26 @@ export function RegistrationForm() {
       setIsSubmitting(false)
       setIsComplete(true)
       return true
-    } catch (err: any) {
-      setSubmitError(err.message)
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setSubmitError(err.message)
+      } else {
+        setSubmitError("An unknown error occurred")
+      }
       setIsSubmitting(false)
       return false
     }
   }
 
   const handleStep3Submit = async () => {
+    if (!formData.password || formData.password !== formData.confirmPassword) {
+      setSubmitError("Passwords do not match or are empty.")
+      return
+    }
+    if (!formData.acceptTerms) {
+      setSubmitError("You must accept the terms and conditions.")
+      return
+    }
     await submitRegistration()
   }
 

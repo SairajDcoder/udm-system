@@ -60,41 +60,38 @@ export function LoginForm() {
     setIsLoading(true)
     const normalizedEmail = email.trim().toLowerCase()
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
-      password,
-    })
-
-    if (signInError) {
-      setError(signInError.message)
-      triggerShake()
-      setIsLoading(false)
-      return
-    }
-
     try {
-      // Step 2: Send OTP email with Resend API route
-      const res = await fetch("/api/auth/send-2fa", {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalizedEmail }),
+        body: JSON.stringify({
+          email: normalizedEmail,
+          password,
+          role: selectedRole.toLowerCase(),
+        }),
       })
 
       if (!res.ok) {
-        const raw = await res.text()
-        try {
-          const data = JSON.parse(raw) as { error?: string }
-          throw new Error(data.error || "Failed to send 2FA email")
-        } catch {
-          throw new Error(raw || "Failed to send 2FA email")
-        }
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || "Failed to sign in")
       }
 
-      // On success, go to 2FA verification
-      router.push(`/verify?email=${encodeURIComponent(normalizedEmail)}&role=${selectedRole}`)
+      const data = await res.json()
+
+      if (data.mfaRequired) {
+        // Step 2: Route directly to 2FA verification to use Google Authenticator TOTP
+        router.push(`/verify?email=${encodeURIComponent(normalizedEmail)}&role=${selectedRole}`)
+      } else {
+        const portalMap: Record<string, string> = {
+          student: "/student-portal",
+          faculty: "/faculty-portal",
+          admin: "/super-admin-portal",
+          verifier: "/verifier-portal"
+        }
+        router.push(portalMap[selectedRole.toLowerCase()] || "/student-portal")
+      }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Error sending 2FA email"
+      const message = err instanceof Error ? err.message : "Error during sign in"
       setError(message)
       triggerShake()
     } finally {

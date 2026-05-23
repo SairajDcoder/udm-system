@@ -173,17 +173,17 @@ export function TwoFactorVerification({
 
       {/* Instruction */}
       <p className="text-[15px] text-[#5C667A] text-center mb-2">
-        Enter the 6-digit verification code sent to your email.
+        Enter the 6-digit verification code from your Authenticator app.
       </p>
 
       {/* Masked email */}
       <p className="text-[13px] text-[#5C667A] text-center mb-6">
-        Code sent to {maskedEmail}
+        Code for {maskedEmail}
       </p>
 
       {/* OTP Input */}
       <div 
-        className={`flex justify-center gap-2 mb-6 ${hasError ? 'animate-shake' : ''}`}
+        className={`relative flex justify-center gap-2 mb-6 ${hasError ? 'animate-shake' : ''}`}
         onPaste={handlePaste}
       >
         {otp.map((digit, index) => (

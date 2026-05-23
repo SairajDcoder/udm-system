@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { createClient } from "@supabase/supabase-js"
 import { logSuccessfulLogin, registerUserProfile } from "@/lib/unichain/service"
 import {
   AUTH_PENDING_COOKIE,
@@ -12,9 +13,24 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const email = String(body.email || "").trim().toLowerCase()
     const role = (body.role || "student") as "student" | "faculty" | "admin" | "verifier"
+    const password = body.password
 
-    if (!email || !body.password) {
+    if (!email || !password) {
       return NextResponse.json({ error: "Email and password are required." }, { status: 400 })
+    }
+
+    // Verify credentials securely against the real Supabase Auth
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const supabase = createClient(supabaseUrl, supabaseAnonKey)
+    
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (authError || !authData.user) {
+      return NextResponse.json({ error: "Invalid login credentials. Please check your email and password." }, { status: 401 })
     }
 
     const user = await registerUserProfile({

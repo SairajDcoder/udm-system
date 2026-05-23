@@ -19,6 +19,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
+import { useStudentWorkspace } from "./use-student-workspace"
 
 const pageNames: Record<string, string> = {
   "/student-portal": "Dashboard",
@@ -39,7 +40,9 @@ interface TopbarProps {
 
 export function Topbar({ onMenuClick }: TopbarProps) {
   const pathname = usePathname()
+  const { data } = useStudentWorkspace()
   const currentPage = pageNames[pathname] || "Dashboard"
+  const notifCount = data?.notifications?.length || 0
 
   return (
     <header className="sticky top-0 z-30 h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6">
@@ -97,9 +100,11 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         {/* Notifications */}
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5 text-gray-600" />
-          <Badge className="absolute -top-0.5 -right-0.5 h-5 w-5 rounded-full p-0 flex items-center justify-center text-[10px] bg-teal-500 text-white border-2 border-white">
-            3
-          </Badge>
+          {notifCount > 0 && (
+            <Badge className="absolute -top-0.5 -right-0.5 h-5 w-5 rounded-full p-0 flex items-center justify-center text-[10px] bg-teal-500 text-white border-2 border-white">
+              {notifCount}
+            </Badge>
+          )}
         </Button>
 
         {/* Portal Switcher */}

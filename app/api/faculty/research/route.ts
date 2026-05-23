@@ -1,17 +1,26 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getSessionClaimsFromRequest } from "@/lib/auth/session"
 import { createResearchDocument, listFacultyResearchDocuments } from "@/lib/unichain/service"
 
 export async function GET(request: NextRequest) {
-  const facultyId = request.nextUrl.searchParams.get("facultyId") || undefined
+  const claims = await getSessionClaimsFromRequest(request)
+  const facultyId = claims?.sub
   const documents = await listFacultyResearchDocuments(facultyId)
   return NextResponse.json({ documents })
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const claims = await getSessionClaimsFromRequest(request)
+    const facultyId = claims?.sub
+
+    if (!facultyId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const body = await request.json()
     const document = await createResearchDocument({
-      facultyId: body.facultyId,
+      facultyId,
       title: String(body.title ?? ""),
       department: body.department ? String(body.department) : undefined,
       visibility: body.visibility === "private" || body.visibility === "public" ? body.visibility : "shared",
