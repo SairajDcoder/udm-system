@@ -1,6 +1,7 @@
 import { BlockchainAnimation } from "@/components/blockchain-animation"
 import { LoginForm } from "@/components/login-form"
-import { UniChainIcon } from "@/components/unichain-icon"
+import { PublicVerification } from "@/components/public-verification"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function LoginPage() {
   return (
@@ -32,9 +33,20 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right Panel - Login Form */}
-      <div className="w-full lg:w-[55%] bg-gray-50 flex items-center justify-center p-6 lg:p-12">
-        <LoginForm />
+      {/* Right Panel - Login & Verification */}
+      <div className="w-full lg:w-[55%] bg-gray-50 flex flex-col items-center justify-center p-6 lg:p-12">
+        <Tabs defaultValue="login" className="w-full max-w-[480px]">
+          <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsTrigger value="login">Portal Login</TabsTrigger>
+            <TabsTrigger value="verify">Verify Credential</TabsTrigger>
+          </TabsList>
+          <TabsContent value="login" className="mt-0 outline-none">
+            <LoginForm />
+          </TabsContent>
+          <TabsContent value="verify" className="mt-0 outline-none">
+            <PublicVerification />
+          </TabsContent>
+        </Tabs>
       </div>
     </main>
   )

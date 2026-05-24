@@ -1,14 +1,10 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Area, AreaChart, Line, LineChart, Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+import { Area, AreaChart, Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 
 interface TPSChartProps {
   data: Array<{ time: string; tps: number }>
-}
-
-interface KafkaLagChartProps {
-  data: Array<{ time: string; studentTopic: number; facultyTopic: number; credentialsTopic: number }>
 }
 
 interface ErrorRateChartProps {
@@ -70,85 +66,6 @@ export function TPSChart({ data }: TPSChartProps) {
   )
 }
 
-export function KafkaLagChart({ data }: KafkaLagChartProps) {
-  return (
-    <Card className="bg-card border-border">
-      <CardHeader className="pb-2">
-        <CardTitle className="font-serif text-base">Kafka Consumer Lag</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="h-[200px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis
-                dataKey="time"
-                stroke="#9CA3AF"
-                fontSize={10}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis
-                stroke="#9CA3AF"
-                fontSize={10}
-                tickLine={false}
-                axisLine={false}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#1B263B",
-                  border: "1px solid #334155",
-                  borderRadius: "8px",
-                  fontSize: "12px",
-                }}
-                labelStyle={{ color: "#E5E7EB" }}
-              />
-              <Line
-                type="monotone"
-                dataKey="studentTopic"
-                stroke="#D64045"
-                strokeWidth={2}
-                dot={false}
-                name="Student Topic"
-              />
-              <Line
-                type="monotone"
-                dataKey="facultyTopic"
-                stroke="#E8A838"
-                strokeWidth={2}
-                dot={false}
-                name="Faculty Topic"
-              />
-              <Line
-                type="monotone"
-                dataKey="credentialsTopic"
-                stroke="#3B82F6"
-                strokeWidth={2}
-                dot={false}
-                name="Credentials Topic"
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="mt-2 flex items-center justify-center gap-4 text-xs">
-          <div className="flex items-center gap-1">
-            <div className="h-2 w-2 rounded-full bg-primary" />
-            <span className="text-muted-foreground">Student</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="h-2 w-2 rounded-full bg-secondary" />
-            <span className="text-muted-foreground">Faculty</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="h-2 w-2 rounded-full bg-info" />
-            <span className="text-muted-foreground">Credentials</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
 export function ErrorRateChart({ data }: ErrorRateChartProps) {
   return (
     <Card className="bg-card border-border">
@@ -200,3 +117,4 @@ export function ErrorRateChart({ data }: ErrorRateChartProps) {
     </Card>
   )
 }
+

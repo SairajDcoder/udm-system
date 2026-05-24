@@ -10,44 +10,24 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { UniChainIcon } from "@/components/unichain-icon"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
-import { useAppKit, useAppKitAccount } from "@reown/appkit/react"
-import { useEffect } from "react"
 
-const roles = ["Student", "Faculty", "Admin", "Verifier"] as const
+const roles = ["Student", "Faculty", "Admin"] as const
 type Role = (typeof roles)[number]
 
 export function LoginForm() {
   const router = useRouter()
   const supabase = createClient()
-  const { open } = useAppKit()
-  const { address, isConnected } = useAppKitAccount()
 
   const [selectedRole, setSelectedRole] = useState<Role>("Student")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [isWalletLoading, setIsWalletLoading] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState("")
   const [shake, setShake] = useState(false)
 
-  // When wallet connects, save address to Supabase user metadata
-  useEffect(() => {
-    const saveWalletAddress = async () => {
-      if (!isConnected || !address) return
 
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { error } = await supabase.auth.updateUser({
-        data: { wallet_address: address },
-      })
-      if (error) console.error("Failed to save wallet address:", error.message)
-    }
-
-    saveWalletAddress()
-  }, [isConnected, address])
 
   const triggerShake = () => {
     setShake(true)
@@ -85,8 +65,7 @@ export function LoginForm() {
         const portalMap: Record<string, string> = {
           student: "/student-portal",
           faculty: "/faculty-portal",
-          admin: "/super-admin-portal",
-          verifier: "/verifier-portal"
+          admin: "/super-admin-portal"
         }
         router.push(portalMap[selectedRole.toLowerCase()] || "/student-portal")
       }
@@ -99,14 +78,7 @@ export function LoginForm() {
     }
   }
 
-  const handleWalletConnect = async () => {
-    setIsWalletLoading(true)
-    try {
-      await open()
-    } finally {
-      setIsWalletLoading(false)
-    }
-  }
+
 
   return (
     <div
@@ -242,35 +214,7 @@ export function LoginForm() {
           )}
         </Button>
 
-        {/* Divider */}
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-200" />
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="bg-white px-4 text-gray-500 font-sans">
-              Or continue with
-            </span>
-          </div>
-        </div>
 
-        {/* Wallet Connect Button */}
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleWalletConnect}
-          disabled={isWalletLoading}
-          className="w-full h-11 border-teal-500 text-teal-500 hover:bg-teal-50 font-sans font-medium rounded-md transition-all duration-150"
-        >
-          {isWalletLoading ? (
-            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-          ) : (
-            <EthereumIcon className="w-5 h-5 mr-2" />
-          )}
-          {isConnected
-            ? `Connected: ${address?.slice(0, 6)}...${address?.slice(-4)}`
-            : "Connect Wallet (DID Login)"}
-        </Button>
 
         {/* Register Link */}
         <p className="text-center text-sm font-sans text-gray-600 mt-6">
@@ -287,15 +231,3 @@ export function LoginForm() {
   )
 }
 
-function EthereumIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={className}
-      fill="currentColor"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z" />
-    </svg>
-  )
-}

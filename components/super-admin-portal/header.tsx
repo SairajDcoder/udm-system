@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { Bell, Search, User, LogOut, Loader2 } from "lucide-react"
+import { Search, User, LogOut, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -49,39 +49,7 @@ export function AdminHeader({ title, code }: AdminHeaderProps) {
           />
         </div>
 
-        {/* Notifications */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-              <Badge className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-[10px] bg-primary">
-                0
-              </Badge>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-80">
-            <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="flex flex-col items-start gap-1">
-              <span className="font-medium">High CPU Alert</span>
-              <span className="text-xs text-muted-foreground">
-                Pod auth-service-7f8d9 exceeded 90% CPU
-              </span>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="flex flex-col items-start gap-1">
-              <span className="font-medium">New Block Mined</span>
-              <span className="text-xs text-muted-foreground">
-                Student BC: Block #1,234,567 confirmed
-              </span>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="flex flex-col items-start gap-1">
-              <span className="font-medium">Kafka Lag Warning</span>
-              <span className="text-xs text-muted-foreground">
-                Consumer group credentials-cg lag: 1,250
-              </span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+
 
         {/* User Menu */}
         <DropdownMenu>

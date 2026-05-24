@@ -81,13 +81,13 @@ export function PortalTopbar() {
               ) : (
                 <>
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src="/placeholder-avatar.jpg" alt={faculty?.full_name || "Faculty Member"} />
+                    <AvatarImage src="/placeholder-avatar.jpg" alt={faculty?.fullName || "Faculty Member"} />
                     <AvatarFallback className="bg-navy-600 text-white">
-                      {faculty?.full_name?.substring(0, 2).toUpperCase() || "FA"}
+                      {faculty?.fullName?.substring(0, 2).toUpperCase() || "FA"}
                     </AvatarFallback>
                   </Avatar>
                   <div className="hidden text-left md:block">
-                    <p className="text-sm font-medium text-navy-700">{faculty?.full_name || "Faculty Member"}</p>
+                    <p className="text-sm font-medium text-navy-700">{faculty?.fullName || "Faculty Member"}</p>
                     <p className="text-xs text-navy-400">{faculty?.department || "Department"}</p>
                   </div>
                 </>

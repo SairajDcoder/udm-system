@@ -7,10 +7,7 @@ import {
   LayoutDashboard,
   Blocks,
   FileCode2,
-  MessageSquare,
-  Container,
   Users,
-  Settings,
   FileText,
   Shield,
   ChevronLeft,
@@ -39,34 +36,16 @@ const navItems = [
     code: "ADM-03",
   },
   {
-    title: "Kafka Management",
-    href: "/super-admin-portal/kafka",
-    icon: MessageSquare,
-    code: "ADM-04",
-  },
-  {
-    title: "Kubernetes Cluster",
-    href: "/super-admin-portal/kubernetes",
-    icon: Container,
-    code: "ADM-05",
-  },
-  {
     title: "User & Roles",
     href: "/super-admin-portal/users",
     icon: Users,
-    code: "ADM-06",
-  },
-  {
-    title: "Configuration",
-    href: "/super-admin-portal/configuration",
-    icon: Settings,
-    code: "ADM-07",
+    code: "ADM-04",
   },
   {
     title: "Compliance & Audit",
     href: "/super-admin-portal/compliance",
     icon: FileText,
-    code: "ADM-08",
+    code: "ADM-05",
   },
 ]
 
