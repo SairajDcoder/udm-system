@@ -314,6 +314,15 @@ export interface VerificationReport {
         timestamp: string
       }
     | null
+  aiAnalysis?: {
+    ai_trust_score: number
+    ml_confidence: number
+    rule_score: number
+    risk_level: string
+    checks: Record<string, boolean>
+    recommendation: string
+    details: string[]
+  }
 }
 
 export const DEMO_USER_IDS = {

@@ -36,6 +36,15 @@ type VerificationReport = {
     gasUsed: number
     timestamp: string
   } | null
+  aiAnalysis?: {
+    ai_trust_score: number
+    ml_confidence: number
+    rule_score: number
+    risk_level: string
+    checks: Record<string, boolean>
+    recommendation: string
+    details: string[]
+  }
 }
 
 export default function VerificationResultPage() {
@@ -188,6 +197,52 @@ export default function VerificationResultPage() {
             ))}
           </CardContent>
         </Card>
+
+        {report.aiAnalysis && (
+          <Card className="border-teal-500/20 bg-teal-50/30">
+            <CardHeader>
+              <CardTitle className="font-serif text-lg flex items-center gap-2 text-teal-800">
+                <Shield className="h-5 w-5 text-teal-500" />
+                AI Smart Verification
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <p className="text-xs text-muted-foreground">AI Trust Score</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <div className="h-2 w-full max-w-[200px] overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full bg-teal-500"
+                        style={{ width: `${report.aiAnalysis.ai_trust_score}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-medium">{report.aiAnalysis.ai_trust_score}%</span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Risk Level</p>
+                  <Badge
+                    variant="outline"
+                    className={
+                      report.aiAnalysis.risk_level === "low"
+                        ? "border-success/30 text-success bg-success/10"
+                        : report.aiAnalysis.risk_level === "medium"
+                        ? "border-warning/30 text-warning bg-warning/10"
+                        : "border-error/30 text-error bg-error/10"
+                    }
+                  >
+                    {report.aiAnalysis.risk_level.toUpperCase()}
+                  </Badge>
+                </div>
+              </div>
+              <div className="rounded-lg border border-teal-500/20 bg-teal-50 p-3">
+                <p className="text-sm font-medium text-teal-800">Recommendation</p>
+                <p className="mt-1 text-xs text-teal-700">{report.aiAnalysis.recommendation}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

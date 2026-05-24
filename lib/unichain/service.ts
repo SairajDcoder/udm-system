@@ -12,6 +12,7 @@ import { existsSync, readFileSync } from "fs"
 import { getSupabaseAdmin } from "@/lib/supabase/admin"
 import { pinToIPFS, fetchFromIPFS, isPinataConfigured } from "@/lib/ipfs/pinata"
 import { decryptWithPolicy, encryptWithPolicy, policyMatches, rekeyWithPolicy } from "@/lib/crypto/abe"
+import { fetchSmartVerify, fetchFraudDetection } from "@/lib/ai-service"
 import {
   DEMO_USER_IDS,
   type AccessGrant,
@@ -1594,7 +1595,7 @@ export async function submitGrades(input: {
   term: string
   grades: Array<{ studentId: string; internal: number; external: number }>
 }) {
-  return mutateDb((db) => {
+  return mutateDb(async (db) => {
     const facultyId = input.facultyId ?? DEMO_USER_IDS.faculty
     const course = db.courses.find((entry) => entry.id === input.courseId || entry.code === input.courseId)
     if (!course) {
@@ -1640,6 +1641,8 @@ export async function submitGrades(input: {
       return record
     })
 
+    const fraudAnalysis = await fetchFraudDetection(updatedRecords)
+
     const totals = updatedRecords.map((record) => record.total)
     const average = totals.reduce((sum, value) => sum + value, 0) / Math.max(1, totals.length)
     const passCount = totals.filter((value) => value >= 40).length
@@ -1653,6 +1656,7 @@ export async function submitGrades(input: {
         term: input.term,
         studentCount: updatedRecords.length,
         average,
+        anomalies_found: fraudAnalysis?.anomalies_found ?? 0,
       },
     })
     createAuditLog(db, {
@@ -1668,6 +1672,7 @@ export async function submitGrades(input: {
       details: {
         average: Number(average.toFixed(2)),
         passRate: Number(((passCount / Math.max(1, totals.length)) * 100).toFixed(1)),
+        anomalies_found: fraudAnalysis?.anomalies_found ?? 0,
       },
     })
 
@@ -1698,6 +1703,7 @@ export async function submitGrades(input: {
         },
       },
       records: updatedRecords,
+      fraudAnalysis,
     }
   })
 }
@@ -1987,7 +1993,7 @@ export async function verifyCredentialByHash(input: {
   method?: VerificationMethod
   verifierEmail?: string
 }) {
-  return mutateDb((db) => {
+  return mutateDb(async (db) => {
     const credential =
       db.credentials.find((entry) => entry.hashId === input.hash || entry.cid === input.hash) ?? null
     const holder = credential ? getUser(db, credential.studentId) : null
@@ -2015,6 +2021,14 @@ export async function verifyCredentialByHash(input: {
     const vScore = Math.round(score * 100)
     const reasonCodes = verificationReasonCodes(checks)
     const status = reasonCodes.length === 0 ? "valid" : "invalid"
+
+    let aiAnalysis = undefined
+    if (credential) {
+      const aiResult = await fetchSmartVerify(credential)
+      if (aiResult) {
+        aiAnalysis = aiResult
+      }
+    }
 
     if (credential) {
       const grant = db.accessGrants.find(
@@ -2104,6 +2118,7 @@ export async function verifyCredentialByHash(input: {
             timestamp: proofTx.createdAt,
           }
         : null,
+      aiAnalysis,
     }
 
     return report
