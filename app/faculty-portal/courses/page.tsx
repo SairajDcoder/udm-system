@@ -718,7 +718,7 @@ export default function CourseManagementPage() {
                         <DialogTitle>{viewingMaterial?.title || 'Material Viewer'}</DialogTitle>
                         <DialogDescription>CID: {viewingMaterial?.cid}</DialogDescription>
                       </DialogHeader>
-                      <div className="flex-1 min-h-[400px] overflow-hidden rounded-md border border-navy-200 bg-white relative">
+                      <div className="flex-1 min-h-[500px] overflow-hidden rounded-md border border-navy-200 bg-white relative">
                         {viewerLoading ? (
                           <div className="absolute inset-0 flex flex-col items-center justify-center text-navy-500">
                             <Loader2 className="h-8 w-8 animate-spin mb-2" />
@@ -729,7 +729,7 @@ export default function CourseManagementPage() {
                             <img src={viewingContent!} alt={viewingMaterial?.title} className="max-w-full max-h-full object-contain" />
                           </div>
                         ) : viewingContentType === 'pdf' ? (
-                          <iframe src={viewingContent!} className="w-full h-full border-0" title="Document Viewer" />
+                          <iframe src={viewingContent!} className="w-full border-0" style={{ height: '500px', minHeight: '500px' }} title="Document Viewer" />
                         ) : (
                           <div className="p-4 whitespace-pre-wrap overflow-auto h-full text-navy-800 font-mono text-sm">
                             {viewingContent}

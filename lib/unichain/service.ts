@@ -2399,8 +2399,20 @@ export async function getStoredDocumentAccess(input: {
     activeGrant ? "grant=active" : "",
   ].filter(Boolean) as string[])
 
+  let encryptedPayload = document.encryptedPayload
+  if (encryptedPayload === "OFF_CHAIN_IPFS_DATABLOCK") {
+    try {
+      const ipfsData = await fetchFromIPFS(document.cid)
+      if (ipfsData) {
+        encryptedPayload = ipfsData
+      }
+    } catch (e) {
+      console.error(`Failed to hydrate IPFS payload for document ${document.id}:`, e)
+    }
+  }
+
   const policySatisfied = policyMatches(document.policy, attributes)
-  const decrypted = policySatisfied ? readDecryptedPayload(document.encryptedPayload, attributes) : null
+  const decrypted = policySatisfied ? readDecryptedPayload(encryptedPayload, attributes) : null
   const integrity = Boolean(decrypted && decrypted.plaintextHash === document.sha256)
 
   return {
